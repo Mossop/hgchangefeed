@@ -13,6 +13,7 @@ from datetime import datetime
 from mercurial.encoding import encoding
 
 from django.db import transaction
+from django.utils.tzinfo import FixedOffset
 
 from website.models import *
 
@@ -64,11 +65,15 @@ def hook(ui, repo, node, **kwargs):
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
 
+        tz = FixedOffset(-changectx.date()[1] / 60)
+        date = datetime.fromtimestamp(changectx.date()[0], tz)
+
         changeset = Changeset(repository = repository,
                               rev = changectx.rev(),
                               hex = changectx.hex(),
                               user = get_user(changectx.user()),
-                              date = datetime.utcfromtimestamp(changectx.date()[0]),
+                              date = date,
+                              tz = -changectx.date()[1] / 60,
                               description = changectx.description())
         changeset.save()
 

@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 
+{% load tz %}
+
 {% block title %}{{ repository }} {{changeset }}{% endblock %}
 
 {% block content %}
-{{ changeset.shortdesc }}
+{{ changeset.shortdesc }}<br>
+{% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
 
 <p>
 {% for change in changes %}

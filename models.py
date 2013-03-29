@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.tzinfo import FixedOffset
 
 CHANGE_TYPES = (
     ("A", "Added"),
@@ -46,7 +47,13 @@ class Changeset(models.Model):
     hex = models.CharField(max_length = 40)
     user = models.ForeignKey(User, related_name = "changesets")
     date = models.DateTimeField()
+    tz = models.IntegerField()
     description = models.TextField()
+
+    @property
+    def localdate(self):
+        tz = FixedOffset(self.tz)
+        return self.date.astimezone(tz)
 
     @property
     def shortdesc(self):

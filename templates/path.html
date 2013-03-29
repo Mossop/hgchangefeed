@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% load tz %}
+
 {% block title %}{{ repository }} {{ path }}{% endblock %}
 
 {% block content %}
@@ -15,7 +17,7 @@
     <td><a href="{% url 'changeset' repository changeset %}">diff</a></td>
     <td>
       {{ changeset }}<br>
-      {{ changeset.date }}
+      {% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
     </td>
     <td>{{ changeset.user.name }} - {{ changeset.shortdesc }}</td>
     <td>
