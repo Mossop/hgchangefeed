@@ -1,8 +1,8 @@
 from django.db import models
 
 CHANGE_TYPES = (
-    ("A", "Addition"),
-    ("M", "Modification"),
+    ("A", "Added"),
+    ("M", "Modified"),
     ("D", "Deleted"),
 )
 
@@ -40,13 +40,16 @@ class User(models.Model):
         return self.name
 
 class Changeset(models.Model):
-    repository = models.ForeignKey(Repository)
+    repository = models.ForeignKey(Repository, related_name = "changesets")
     rev = models.IntegerField()
     hex = models.CharField(max_length = 40)
-    user = models.ForeignKey(User)
+    user = models.ForeignKey(User, related_name = "changesets")
     date = models.DateTimeField()
     description = models.TextField()
-    paths = models.ManyToManyField(Path, through = "PathChanges")
+
+    @property
+    def shortdesc(self):
+        return self.description
 
     @property
     def shorthex(self):
@@ -56,16 +59,25 @@ class Changeset(models.Model):
     def url(self):
         return "%srev/%s" % (self.repository.url, self.shorthex)
 
+    @property
+    def changetypes(self):
+        changes = set()
+        for change in self.changes.objects.all():
+            changes.add(change.type)
+        return changes
+
     def __unicode__(self):
         return self.shorthex
 
     class Meta:
         unique_together = (("repository", "rev"), ("repository", "hex"))
         ordering = ["-rev"]
+        get_latest_by = "rev"
 
 class Change(models.Model):
-    changeset = models.ForeignKey(Changeset)
-    path = models.ForeignKey(Path)
+    changeset = models.ForeignKey(Changeset, related_name = "changes")
+    path = models.ForeignKey(Path, related_name = "changes")
+    pathlist = models.ManyToManyField(Path, related_name = "allchanges")
     type = models.CharField(max_length=1, choices=CHANGE_TYPES)
 
     def __unicode__(self):
@@ -73,12 +85,3 @@ class Change(models.Model):
 
     class Meta:
         unique_together = ("changeset", "path")
-
-class PathChanges(models.Model):
-    changeset = models.ForeignKey(Changeset)
-    path = models.ForeignKey(Path)
-    changes = models.ManyToManyField(Change)
-
-    class Meta:
-        unique_together = ("changeset", "path")
-

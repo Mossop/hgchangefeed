@@ -50,9 +50,7 @@ def get_user(username):
 def add_change(change):
     path = change.path
     while path is not None:
-        pathchanges, created = PathChanges.objects.get_or_create(path = path, changeset = change.changeset)
-        pathchanges.changes.add(change)
-
+        change.pathlist.add(path)
         path = path.parent
 
 @transaction.commit_on_success
