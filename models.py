@@ -7,8 +7,8 @@ CHANGE_TYPES = (
 )
 
 class Repository(models.Model):
-    url = models.TextField(unique = True)
-    name = models.TextField(unique = True)
+    url = models.CharField(max_length = 255, unique = True)
+    name = models.CharField(max_length = 50, unique = True)
 
     @property
     def root(self):
@@ -18,8 +18,8 @@ class Repository(models.Model):
         return self.name
 
 class Path(models.Model):
-    name = models.TextField()
-    path = models.TextField()
+    name = models.CharField(max_length = 50)
+    path = models.CharField(max_length = 2000)
     parent = models.ForeignKey('self', related_name = "children", null = True)
     repository = models.ForeignKey(Repository)
 
@@ -27,11 +27,11 @@ class Path(models.Model):
         return self.path
 
     class Meta:
-        unique_together = (("repository", "path"), ("parent", "name"))
+        unique_together = ("parent", "name")
         ordering = ["path"]
 
 class User(models.Model):
-    user = models.TextField(unique = True)
+    user = models.CharField(max_length = 255, unique = True)
 
     @property
     def name(self):
@@ -79,7 +79,7 @@ class Change(models.Model):
     changeset = models.ForeignKey(Changeset, related_name = "changes")
     path = models.ForeignKey(Path, related_name = "changes")
     pathlist = models.ManyToManyField(Path, related_name = "allchanges")
-    type = models.CharField(max_length=1, choices=CHANGE_TYPES)
+    type = models.CharField(max_length = 1, choices = CHANGE_TYPES)
 
     def __unicode__(self):
         return "%s %s" % (self.type, self.path.path)
