@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ repository }} {{ path }}{% endblock %}
+
+{% block content %}
+<ul>
+{% for path in paths %}
+  <li><a href="{% url 'path' repository path %}">{{ path.name }}</a></li>
+{% endfor %}
+</ul>
+
+<table>
+{% for changeset in changesets %}
+  <tr>
+    <td><a href="{% url 'changeset' repository changeset %}">diff</a></td>
+    <td>
+      {{ changeset }}<br>
+      {{ changeset.date }}
+    </td>
+    <td>{{ changeset.user.name }} - {{ changeset.shortdesc }}</td>
+    <td>
+    {% for change in changeset.changetypes %}
+      {{ change }},
+    {% endfor %}
+    </td>
+  </tr>
+{% endfor %}
+</table>
+{% endblock %}

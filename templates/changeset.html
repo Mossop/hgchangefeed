@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}{{ repository }} {{changeset }}{% endblock %}
+
+{% block content %}
+{{ changeset.shortdesc }}
+
+<p>
+{% for change in changes %}
+  {{ change.type }} {{ change.path }}<br>
+{% endfor %}
+</p>
+
+{% endblock %}

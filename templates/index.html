@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if repositories %}
+    <ul>
+    {% for repository in repositories %}
+        <li><a href="{% url 'path' repository.name '' %}">{{ repository.name }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No repositories are being monitored.</p>
+{% endif %}
+{% endblock %}

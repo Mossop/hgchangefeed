@@ -28,6 +28,7 @@ class Path(models.Model):
 
     class Meta:
         unique_together = (("repository", "path"), ("parent", "name"))
+        ordering = ["path"]
 
 class User(models.Model):
     user = models.TextField(unique = True)
