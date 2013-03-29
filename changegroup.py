@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+from mercurial import demandimport;
+demandimport.disable()
+
 import os
 import sys
 
