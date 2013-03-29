@@ -76,21 +76,36 @@ def hook(ui, repo, node, **kwargs):
 
         ui.status("%s\n" % changeset)
 
+        count = 0
         for file in changectx.files():
             path = get_path(repository, file)
 
-            type = "A"
-            if not file in changectx:
-                type = "R"
-            elif any([file in c for c in parents]):
-                type = "M"
+            type = "M"
 
+            if not file in changectx:
+                if all([file in c for c in parents]):
+                    type = "R"
+                else:
+                    continue
+            else:
+                filectx = changectx[file]
+                if not any([file in c for c in parents]):
+                    type = "A"
+                elif all([filectx.cmp(c[file]) for c in parents]):
+                    type = "M"
+                else:
+                    continue
+
+            count = count + 1
             change = Change(changeset = changeset, path = path, type = type)
             change.save()
 
             add_change(change)
 
             ui.status("%s\n" % change)
+
+        if count == 0:
+            changeset.delete()
 
         ui.status("\n")
 
