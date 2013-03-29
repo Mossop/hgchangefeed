@@ -10,6 +10,8 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'hgchangefeed.settings'
 
 from datetime import datetime
 
+from mercurial.encoding import encoding
+
 from django.db import transaction
 
 from website.models import *
@@ -41,6 +43,10 @@ def get_path(repository, path):
         result.save()
         return result
 
+def get_user(username):
+    user, created = User.objects.get_or_create(user = unicode(username, encoding))
+    return user
+
 def add_change(change):
     path = change.path
     while path is not None:
@@ -63,7 +69,7 @@ def hook(ui, repo, node, **kwargs):
         changeset = Changeset(repository = repository,
                               rev = changectx.rev(),
                               hex = changectx.hex(),
-                              user = changectx.user(),
+                              user = get_user(changectx.user()),
                               date = datetime.utcfromtimestamp(changectx.date()[0]),
                               description = changectx.description())
         changeset.save()
