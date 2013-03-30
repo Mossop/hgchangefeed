@@ -84,7 +84,7 @@ class Changeset(models.Model):
     @property
     def changetypes(self):
         changes = set()
-        for change in self.changes.objects.all():
+        for change in self.changes.all():
             changes.add(change.type)
         return changes
 
