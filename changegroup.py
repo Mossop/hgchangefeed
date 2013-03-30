@@ -81,6 +81,9 @@ def get_user(username):
     return user
 
 def add_changesets(ui, repo, repository, rev, tip):
+    changeset_count = 0
+    changes = []
+
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
         ui.progress("indexing changesets", i - rev, changectx.hex(), total = tip - rev + 1)
@@ -106,7 +109,6 @@ def add_changesets(ui, repo, repository, rev, tip):
 
         parents = changectx.parents()
 
-        count = 0
         for file in changectx.files():
             path = get_path(repository, file)
 
@@ -126,14 +128,16 @@ def add_changesets(ui, repo, repository, rev, tip):
                 else:
                     continue
 
-            count = count + 1
-            change = Change(changeset = changeset, path = path, type = type)
-            change.save()
+            changes.append(Change(changeset = changeset, path = path, type = type))
 
-        if count == 0:
+        if len(changes) == 0:
             changeset.delete()
+        else:
+            changeset_count = changeset_count + 1
 
     ui.progress("indexing changesets", None)
+    Change.objects.bulk_create(changes)
+    ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, len(changes)))
 
     oldsets = Changeset.objects.all()[MAX_CHANGESETS:]
     pos = 0
@@ -142,6 +146,8 @@ def add_changesets(ui, repo, repository, rev, tip):
         changeset.delete()
         pos = pos + 1
     ui.progress("expiring changesets", None)
+    if len(oldsets) > 0:
+        ui.status("expired %d changesets from database\n" % len(oldsets))
 
     return False
 
