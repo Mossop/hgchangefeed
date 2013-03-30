@@ -61,12 +61,12 @@ class Path(models.Model):
     class Meta:
         ordering = ["path"]
 
-class User(models.Model):
-    user = models.CharField(max_length = 255, unique = True)
+class Author(models.Model):
+    author = models.CharField(max_length = 255, unique = True)
 
     @property
     def name(self):
-        return self.user.split(" <")[0]
+        return self.author.split(" <")[0]
 
     def __unicode__(self):
         return self.name
@@ -75,7 +75,7 @@ class Changeset(models.Model):
     repository = models.ForeignKey(Repository, related_name = "changesets")
     rev = models.IntegerField()
     hex = models.CharField(max_length = 40)
-    user = models.ForeignKey(User, related_name = "changesets")
+    author = models.ForeignKey(Author, related_name = "changesets")
     date = models.DateTimeField()
     tz = models.IntegerField()
     description = models.TextField()

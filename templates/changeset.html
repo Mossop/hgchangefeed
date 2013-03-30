@@ -19,7 +19,7 @@
 <p class="summary">{{ changeset.description|summarise|bugzilla }}</p>
 
 <table class="meta">
-  <tr><td class="label">Author:</td><td>{{ changeset.user.user }}</td></tr>
+  <tr><td class="label">Author:</td><td>{{ changeset.author.author }}</td></tr>
   <tr><td class="label">Date:</td><td>{% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}</td></tr>
   <tr><td class="label">Changeset:</td><td><a href="{{ changeset.url }}">{{ changeset }}</a> ({{ changeset.rev }})</td></tr>
   <tr><td class="label">Pushlog:</td><td><a href="{{ changeset.pushlog }}">{{ changeset }}</a></td></tr>

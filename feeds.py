@@ -49,7 +49,7 @@ class PathFeed(Feed):
         return "Changeset %s" % changeset
 
     def item_author_name(self, changeset):
-        return changeset.user.name
+        return changeset.author.name
 
     def item_pubdate(self, changeset):
         return changeset.localdate

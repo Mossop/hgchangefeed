@@ -76,9 +76,9 @@ def get_path(repository, path, is_dir = False):
         result.save()
         return result
 
-def get_user(username):
-    user, created = User.objects.get_or_create(user = unicode(username, encoding))
-    return user
+def get_author(author):
+    result, created = Author.objects.get_or_create(author = unicode(author, encoding))
+    return result
 
 def add_changesets(ui, repo, repository, rev, tip):
     changeset_count = 0
@@ -101,7 +101,7 @@ def add_changesets(ui, repo, repository, rev, tip):
         changeset = Changeset(repository = repository,
                               rev = changectx.rev(),
                               hex = changectx.hex(),
-                              user = get_user(changectx.user()),
+                              author = get_author(changectx.user()),
                               date = date,
                               tz = -changectx.date()[1] / 60,
                               description = unicode(changectx.description(), encoding))
