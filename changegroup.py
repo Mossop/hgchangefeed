@@ -66,22 +66,6 @@ def add_paths(ui, repository, files):
     Path.objects.bulk_create(paths)
     ui.status("added %d files to database\n" % len(paths))
 
-def get_repository(ui, repo, url):
-    try:
-        return Repository.objects.get(url = url)
-    except Repository.DoesNotExist:
-        stripped = url
-        if url[-1] == "/":
-            stripped = url[:-1]
-        name = stripped.split("/")[-1]
-
-        repository = Repository(url = url, name = name)
-        repository.save()
-
-        add_paths(ui, repository, [f for f in repo.changectx("tip")])
-
-        return repository
-
 def get_path(repository, path, is_dir = False):
     try:
         return Path.objects.get(repository = repository, path = path)
@@ -96,14 +80,7 @@ def get_user(username):
     user, created = User.objects.get_or_create(user = unicode(username, encoding))
     return user
 
-@transaction.commit_on_success
-def hook(ui, repo, node, **kwargs):
-    repository = get_repository(ui, repo, kwargs["url"])
-
-    # All changesets from node to "tip" inclusive are part of this push.
-    tip = repo.changectx("tip").rev()
-    rev = max(tip - MAX_CHANGESETS, repo.changectx(node).rev())
-
+def add_changesets(ui, repo, repository, rev, tip):
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
         ui.progress("indexing changesets", i - rev, changectx.hex(), total = tip - rev + 1)
@@ -167,3 +144,31 @@ def hook(ui, repo, node, **kwargs):
     ui.progress("expiring changesets", None)
 
     return False
+
+@transaction.commit_on_success
+def hook(ui, repo, node, **kwargs):
+    url = kwargs["url"]
+    tip = repo.changectx("tip")
+
+    try:
+        repository = Repository.objects.get(url = url)
+
+        # Existing repository, only add new changesets
+        # All changesets from node to "tip" inclusive are part of this push.
+        rev = max(tip.rev() - MAX_CHANGESETS, repo.changectx(node).rev())
+        add_changesets(ui, repo, repository, rev, tip.rev())
+
+    except Repository.DoesNotExist:
+        stripped = url
+        if url[-1] == "/":
+            stripped = url[:-1]
+        name = stripped.split("/")[-1]
+
+        repository = Repository(url = url, name = name)
+        repository.save()
+
+        add_paths(ui, repository, [f for f in tip])
+
+        # New repository, attempt to add the maximum number of changesets
+        rev = tip.rev() + 1 - MAX_CHANGESETS
+        add_changesets(ui, repo, repository, rev, tip.rev())
