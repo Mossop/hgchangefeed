@@ -1,13 +1,16 @@
-{% extends "base.html" %}
+{% extends "sidebar.html" %}
+
+{% block sidebar %}
+<ul>
+{% for repository in repositories %}
+    <li><a href="{% url 'path' repository.name '' %}">{{ repository.name }}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}
 
 {% block content %}
-{% if repositories %}
-    <ul>
-    {% for repository in repositories %}
-        <li><a href="{% url 'path' repository.name '' %}">{{ repository.name }}</a></li>
-    {% endfor %}
-    </ul>
-{% else %}
-    <p>No repositories are being monitored.</p>
-{% endif %}
+<p>Track changes made in any descendants of directories in a repository.</p>
+<p>Select a repository from the list on the left and navigate to a directory
+  or file that you're interested in to see all recent changesets that affected
+  that directory or any of its descendants.</p>
 {% endblock %}

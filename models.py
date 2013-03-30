@@ -24,6 +24,14 @@ class Path(models.Model):
     parent = models.ForeignKey('self', related_name = "children", null = True)
     repository = models.ForeignKey(Repository)
 
+    def parentlist(self):
+        result = []
+        parent = self
+        while parent.parent is not None:
+            result.insert(0, parent)
+            parent = parent.parent
+        return result
+
     def __unicode__(self):
         return self.path
 
@@ -66,6 +74,10 @@ class Changeset(models.Model):
     @property
     def url(self):
         return "%srev/%s" % (self.repository.url, self.shorthex)
+
+    @property
+    def pushlog(self):
+        return "%spushloghtml?changeset=%s" % (self.repository.url, self.shorthex)
 
     @property
     def changetypes(self):

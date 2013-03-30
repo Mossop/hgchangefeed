@@ -1,30 +1,36 @@
-{% extends "base.html" %}
+{% extends "sidebar.html" %}
 
 {% load tz %}
 
 {% block title %}{{ repository }} {{ path }}{% endblock %}
 
-{% block content %}
+{% block heading %}
+<a href="{% url 'path' repository.name '' %}">{{ repository }}</a>
+{% for parent in path.parentlist %}
+{% if forloop.first %} - {% endif %}
+<a href="{% url 'path' repository parent %}">{{ parent.name }}</a>
+{% if not forloop.last %} / {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block sidebar %}
 <ul>
 {% for path in paths %}
   <li><a href="{% url 'path' repository path %}">{{ path.name }}</a></li>
 {% endfor %}
 </ul>
+{% endblock %}
 
-<table>
+{% block content %}
+<table class="changesets">
 {% for changeset in changesets %}
   <tr>
-    <td><a href="{% url 'changeset' repository changeset %}">diff</a></td>
-    <td>
+    <td class="link"><a href="{% url 'changeset' repository changeset %}">Details</a></td>
+    <td class="meta">
       {{ changeset }}<br>
       {% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
     </td>
-    <td>{{ changeset.user.name }} - {{ changeset.shortdesc }}</td>
-    <td>
-    {% for change in changeset.changetypes %}
-      {{ change }},
-    {% endfor %}
-    </td>
+    <td class="summary"><span class="author">{{ changeset.user.name }}</span> - {{ changeset.shortdesc }}</td>
   </tr>
 {% endfor %}
 </table>

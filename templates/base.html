@@ -2,9 +2,15 @@
 
 <html>
 <head>
+  <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}styles/reset.css">
+  <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}styles/layout.css">
   <title>{% block title %}HG Change Feed{% endblock %}</title>
 </head>
-<body>
-{% block content %}{% endblock %}
+<body class="{% block bodyclass %}{% endblock %}">
+<div id="heading">
+  {% block heading %}HG Change Feed{% endblock %}
+</div>
+
+{% block body %}{% endblock %}
 </body>
 </html>

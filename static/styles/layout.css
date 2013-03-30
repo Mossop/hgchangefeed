@@ -1,0 +1,71 @@
+body {
+  font-style: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+}
+
+#heading {
+  padding: 10px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: rgb(217, 216, 209);
+}
+
+#sidebar {
+  width: 200px;
+  float: left;
+  padding: 10px;
+}
+
+#content {
+  padding: 10px;
+}
+
+.sidebar #content {
+  margin-left: 220px;
+}
+
+#sidebar li {
+  margin-bottom: 0.5em;
+}
+
+#content p {
+  margin-bottom: 0.5em;
+}
+
+#content table {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+#content table td {
+  padding: 5px;
+}
+
+.changesets tr:nth-child(even) {
+  background-color: rgb(246, 246, 240);
+}
+
+.changesets .author {
+  font-style: italic;
+}
+
+.summary {
+  font-weight: bold;
+}
+
+.meta .label {
+  font-weight: bold;
+}
+
+.description {
+  background-color: rgb(217, 216, 209);
+}
+
+div.description {
+  padding: 10px;
+}
+
+.filechanges tr:nth-child(even) {
+  background-color: rgb(246, 246, 240);
+}
