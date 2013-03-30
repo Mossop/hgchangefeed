@@ -53,7 +53,8 @@ def add_paths(ui, repository, files):
             newpath = Path(repository = repository,
                            name = name,
                            path = path,
-                           parentpath = parentlist[-1].path)
+                           parentpath = parentlist[-1].path,
+                           is_dir = True if len(remains) else False)
             paths.append(newpath)
 
             if len(remains):
@@ -81,13 +82,13 @@ def get_repository(ui, repo, url):
 
         return repository
 
-def get_path(repository, path):
+def get_path(repository, path, is_dir = False):
     try:
         return Path.objects.get(repository = repository, path = path)
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
-        parent = get_path(repository, parts[0] if len(parts) > 1 else '')
-        result = Path(repository = repository, path = path, name = parts[-1], parentpath = parent.path)
+        parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
+        result = Path(repository = repository, path = path, name = parts[-1], parentpath = parent.path, is_dir = is_dir)
         result.save()
         return result
 

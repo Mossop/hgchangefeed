@@ -30,7 +30,7 @@ class Path(models.Model):
     path = models.TextField()
     parentpath = models.TextField()
     repository = models.ForeignKey(Repository)
-    _children = None
+    is_dir = models.BooleanField()
 
     @property
     def parent(self):
@@ -44,13 +44,7 @@ class Path(models.Model):
 
     @property
     def children(self):
-        if self._children is not None:
-            return self._children
-        self._children = [p for p in Path.objects.filter(repository = self.repository, parentpath = self.path)]
-        return self._children
-
-    def is_dir(self):
-        return len(self.children) > 0
+        return Path.objects.filter(repository = self.repository, parentpath = self.path)
 
     def parentlist(self):
         result = []
