@@ -89,6 +89,31 @@ div.description {
   padding: 10px;
 }
 
-.filechanges tr:nth-child(even) {
+.filechanges {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.filechanges li {
+  margin-bottom: 0.5em;
+  padding-left: 20px;
+  line-height: 16px;
+  background-position: left center;
+  background-repeat: no-repeat;
+}
+
+.filechanges .Added {
+  background-image: url(../images/plus-circle-frame.png);
+}
+
+.filechanges .Modified {
+  background-image: url(../images/pencil.png);
+}
+
+.filechanges .Deleted {
+  background-image: url(../images/minus-circle-frame.png);
+}
+
+.filechanges li:nth-child(even) {
   background-color: rgb(246, 246, 240);
 }

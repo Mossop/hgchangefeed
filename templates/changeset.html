@@ -21,10 +21,10 @@
 
 <div class="description">{{ changeset.description|bugzilla|linebreaks }}</div>
 
-<table class="filechanges">
+<ul class="filechanges">
 {% for change in changes %}
-  <tr><td>{{ change.type }}</td><td>{{ change.path }}</td></tr>
+  <li class="{{ change.get_type_display }}">{{ change.path }}</li>
 {% endfor %}
-</table>
+</ul>
 
 {% endblock %}
