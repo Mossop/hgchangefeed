@@ -95,12 +95,6 @@ def get_user(username):
     user, created = User.objects.get_or_create(user = unicode(username, encoding))
     return user
 
-def add_change(change):
-    path = change.path
-    while path is not None:
-        change.pathlist.add(path)
-        path = path.parent
-
 @transaction.commit_on_success
 def hook(ui, repo, node, **kwargs):
     repository = get_repository(ui, repo, kwargs["url"])
@@ -157,8 +151,6 @@ def hook(ui, repo, node, **kwargs):
             count = count + 1
             change = Change(changeset = changeset, path = path, type = type)
             change.save()
-
-            add_change(change)
 
         if count == 0:
             changeset.delete()

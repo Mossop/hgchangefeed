@@ -28,7 +28,7 @@ def path(request, repository_name, path_name):
     repository = get_object_or_404(Repository, name = repository_name)
     path = get_object_or_404(Path, repository = repository, path = path_name)
 
-    changesets = Changeset.objects.filter(changes__pathlist__in = [path]).distinct()
+    changesets = Changeset.objects.filter(changes__path__path__startswith = path.path).distinct()
     if "types" in request.GET:
         types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
         changesets = [c for c in changesets if c.changes.filter(type__in = types).count() > 0]
@@ -36,8 +36,8 @@ def path(request, repository_name, path_name):
     context = {
       "repository": repository,
       "path": path,
-      "changesets": changesets[:100],
-      "paths": sorted(path.children.all(), path_cmp),
+      "changesets": changesets[:200],
+      "paths": sorted(path.children, path_cmp),
     }
     return render(request, "path.html", context)
 

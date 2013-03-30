@@ -124,7 +124,6 @@ class Changeset(models.Model):
 class Change(models.Model):
     changeset = models.ForeignKey(Changeset, related_name = "changes")
     path = models.ForeignKey(Path, related_name = "changes")
-    pathlist = models.ManyToManyField(Path, related_name = "allchanges")
     type = models.CharField(max_length = 1, choices = CHANGE_TYPES)
 
     def __unicode__(self):
