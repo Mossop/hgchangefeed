@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+MAX_CHANGESETS = 1000
+
 from mercurial import demandimport;
 demandimport.disable()
 
@@ -50,7 +52,6 @@ def get_path(repository, path):
         pathcache[path] = result
         return result
     except Path.DoesNotExist:
-        print("Adding path %s" % path)
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '')
         result = Path(repository = repository, path = path, name = parts[-1], parent = parent)
@@ -73,8 +74,8 @@ def hook(ui, repo, node, **kwargs):
     repository = get_repository(repo, kwargs["url"])
 
     # All changesets from node to "tip" inclusive are part of this push.
-    rev = repo.changectx(node).rev()
     tip = repo.changectx("tip").rev()
+    rev = max(tip - MAX_CHANGESETS, repo.changectx(node).rev())
 
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
@@ -128,5 +129,10 @@ def hook(ui, repo, node, **kwargs):
 
         if count == 0:
             changeset.delete()
+
+    oldsets = Changeset.objects.all()[MAX_CHANGESETS:]
+    for changeset in oldsets:
+        ui.status("Expiring old changeset %s\n" % changeset)
+        changeset.delete()
 
     return False
