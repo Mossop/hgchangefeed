@@ -64,10 +64,6 @@ class Changeset(models.Model):
         return self.date.astimezone(tz)
 
     @property
-    def shortdesc(self):
-        return self.description
-
-    @property
     def shorthex(self):
         return self.hex[0:12]
 

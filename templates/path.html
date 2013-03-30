@@ -30,7 +30,7 @@
       {{ changeset }}<br>
       {% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
     </td>
-    <td class="summary"><span class="author">{{ changeset.user.name }}</span> - {{ changeset.shortdesc }}</td>
+    <td class="summary"><span class="author">{{ changeset.user.name }}</span> - {{ changeset.description|summarise }}</td>
   </tr>
 {% endfor %}
 </table>

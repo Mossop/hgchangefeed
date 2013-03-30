@@ -1,6 +1,7 @@
 {% extends "page.html" %}
 
 {% load tz %}
+{% load mercurial %}
 
 {% block title %}{{ repository }} changeset {{changeset }}{% endblock %}
 
@@ -9,7 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<p class="summary">{{ changeset.shortdesc }}</p>
+<p class="summary">{{ changeset.description|summarise }}</p>
 
 <table class="meta">
   <tr><td class="label">Author:</td><td>{{ changeset.user }}</td></tr>
