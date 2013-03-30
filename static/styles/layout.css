@@ -11,6 +11,10 @@ body {
   background-color: rgb(217, 216, 209);
 }
 
+#heading .feedicon {
+  float: right;
+}
+
 #sidebar {
   width: 200px;
   float: left;

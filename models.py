@@ -15,6 +15,9 @@ class Repository(models.Model):
     def root(self):
         return Path.objects.get(repository = self, parent = None)
 
+    def get_absolute_url(self):
+        return self.url
+
     def __unicode__(self):
         return self.name
 
@@ -84,6 +87,9 @@ class Changeset(models.Model):
         for change in self.changes.objects.all():
             changes.add(change.type)
         return changes
+
+    def get_absolute_url(self):
+        return self.url
 
     def __unicode__(self):
         return self.shorthex

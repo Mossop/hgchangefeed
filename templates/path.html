@@ -6,6 +6,9 @@
 {% block title %}{{ repository }} {{ path }}{% endblock %}
 
 {% block heading %}
+<div class="feedicon">
+  <a href="{% url 'feed' repository path %}"><img src="{{ STATIC_URL }}images/feed.png"></a>
+</div>
 <a href="{% url 'path' repository.name '' %}">{{ repository }}</a>
 {% for parent in path.parentlist %}
 {% if forloop.first %} - {% endif %}
