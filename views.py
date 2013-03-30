@@ -12,6 +12,13 @@ TYPEMAP = {
     "modified": "M",
 }
 
+def path_cmp(a, b):
+    a_is_dir = a.is_dir()
+    b_is_dir = b.is_dir()
+    if a_is_dir == b_is_dir:
+        return cmp(a.path, b.path)
+    return -1 if a_is_dir else 1
+
 def index(request):
     repositories = Repository.objects.order_by('name')
     context = { "repositories": repositories }
@@ -30,7 +37,7 @@ def path(request, repository_name, path_name):
       "repository": repository,
       "path": path,
       "changesets": changesets[:100],
-      "paths": path.children.all(),
+      "paths": sorted(path.children.all(), path_cmp),
     }
     return render(request, "path.html", context)
 
