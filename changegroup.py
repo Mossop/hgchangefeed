@@ -25,7 +25,47 @@ from django.utils.tzinfo import FixedOffset
 
 from website.models import *
 
-def get_repository(repo, url):
+def add_paths(ui, repository, files):
+    root = Path(repository = repository, name = '', path = '', parentpath = '')
+    paths = [root]
+    parentlist = [root]
+
+    pos = 0
+    for file in files:
+        ui.progress("indexing files", pos, item = file, total = len(files))
+
+        while not file.startswith(parentlist[-1].path):
+            parentlist.pop()
+
+        remains = file[len(parentlist[-1].path):].split("/")
+        if not remains[0]:
+            remains.pop(0)
+
+        while len(remains):
+            name = remains[0]
+            parentpath = parentlist[-1].path
+            path = parentpath
+            if path:
+                path = path + "/"
+            path = path + remains[0]
+            remains.pop(0)
+
+            newpath = Path(repository = repository,
+                           name = name,
+                           path = path,
+                           parentpath = parentlist[-1].path)
+            paths.append(newpath)
+
+            if len(remains):
+                parentlist.append(newpath)
+
+        pos = pos + 1
+
+    ui.progress("indexing files", None)
+    Path.objects.bulk_create(paths)
+    ui.status("added %d files to database\n" % len(paths))
+
+def get_repository(ui, repo, url):
     try:
         return Repository.objects.get(url = url)
     except Repository.DoesNotExist:
@@ -37,29 +77,18 @@ def get_repository(repo, url):
         repository = Repository(url = url, name = name)
         repository.save()
 
-        root = Path(repository = repository, name = '', path = '')
-        root.save()
-
-        for file in repo.changectx("tip"):
-            get_path(repository, file)
+        add_paths(ui, repository, [f for f in repo.changectx("tip")])
 
         return repository
 
-pathcache = dict()
 def get_path(repository, path):
-    if path in pathcache:
-        return pathcache[path]
-
     try:
-        result = Path.objects.get(repository = repository, path = path)
-        pathcache[path] = result
-        return result
+        return Path.objects.get(repository = repository, path = path)
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '')
-        result = Path(repository = repository, path = path, name = parts[-1], parent = parent)
+        result = Path(repository = repository, path = path, name = parts[-1], parentpath = parent.path)
         result.save()
-        pathcache[path] = result
         return result
 
 def get_user(username):
@@ -74,7 +103,7 @@ def add_change(change):
 
 @transaction.commit_on_success
 def hook(ui, repo, node, **kwargs):
-    repository = get_repository(repo, kwargs["url"])
+    repository = get_repository(ui, repo, kwargs["url"])
 
     # All changesets from node to "tip" inclusive are part of this push.
     tip = repo.changectx("tip").rev()
@@ -82,14 +111,15 @@ def hook(ui, repo, node, **kwargs):
 
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
+        ui.progress("indexing changesets", i - rev, changectx.hex(), total = tip - rev + 1)
 
         tz = FixedOffset(-changectx.date()[1] / 60)
         date = datetime.fromtimestamp(changectx.date()[0], tz)
 
         try:
             changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
+            ui.warn("deleting stale information for changeset %s\n" % changeset)
             changeset.delete()
-            ui.warn("Deleting stale information for changeset %s\n" % changeset)
         except:
             pass
 
@@ -133,9 +163,14 @@ def hook(ui, repo, node, **kwargs):
         if count == 0:
             changeset.delete()
 
+    ui.progress("indexing changesets", None)
+
     oldsets = Changeset.objects.all()[MAX_CHANGESETS:]
+    pos = 0
     for changeset in oldsets:
-        ui.status("Expiring old changeset %s\n" % changeset)
+        ui.progress("expiring changesets", pos, changectx.hex(), total = len(oldsets))
         changeset.delete()
+        pos = pos + 1
+    ui.progress("expiring changesets", None)
 
     return False

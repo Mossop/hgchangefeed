@@ -26,27 +26,45 @@ class Repository(models.Model):
         return self.name
 
 class Path(models.Model):
-    name = models.CharField(max_length = 50)
-    path = models.CharField(max_length = 2000)
-    parent = models.ForeignKey('self', related_name = "children", null = True)
+    name = models.TextField()
+    path = models.TextField()
+    parentpath = models.TextField()
     repository = models.ForeignKey(Repository)
+    _children = None
+
+    @property
+    def parent(self):
+        if not self.path:
+            return None
+
+        try:
+            return Path.objects.get(repository = self.repository, path = self.parentpath)
+        except Path.DoesNotExist:
+            return None
+
+    @property
+    def children(self):
+        if self._children is not None:
+            return self._children
+        self._children = [p for p in Path.objects.filter(repository = self.repository, parentpath = self.path)]
+        return self._children
 
     def is_dir(self):
-        return self.children.count() > 0
+        return len(self.children) > 0
 
     def parentlist(self):
         result = []
         parent = self
-        while parent.parent is not None:
+        while parent is not None:
             result.insert(0, parent)
             parent = parent.parent
+        result.pop(0)
         return result
 
     def __unicode__(self):
         return self.path
 
     class Meta:
-        unique_together = ("parent", "name")
         ordering = ["path"]
 
 class User(models.Model):
