@@ -71,18 +71,23 @@ def hook(ui, repo, node, **kwargs):
         tz = FixedOffset(-changectx.date()[1] / 60)
         date = datetime.fromtimestamp(changectx.date()[0], tz)
 
+        try:
+            changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
+            changeset.delete()
+            ui.warn("Deleting stale information for changeset %s\n" % changeset)
+        except:
+            pass
+
         changeset = Changeset(repository = repository,
                               rev = changectx.rev(),
                               hex = changectx.hex(),
                               user = get_user(changectx.user()),
                               date = date,
                               tz = -changectx.date()[1] / 60,
-                              description = changectx.description())
+                              description = unicode(changectx.description(), encoding))
         changeset.save()
 
         parents = changectx.parents()
-
-        ui.status("%s\n" % changeset)
 
         count = 0
         for file in changectx.files():
@@ -110,11 +115,7 @@ def hook(ui, repo, node, **kwargs):
 
             add_change(change)
 
-            ui.status("%s\n" % change)
-
         if count == 0:
             changeset.delete()
-
-        ui.status("\n")
 
     return False
