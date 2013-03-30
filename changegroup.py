@@ -20,7 +20,7 @@ from django.utils.tzinfo import FixedOffset
 
 from website.models import *
 
-def get_repository(url):
+def get_repository(repo, url):
     try:
         return Repository.objects.get(url = url)
     except Repository.DoesNotExist:
@@ -35,16 +35,27 @@ def get_repository(url):
         root = Path(repository = repository, name = '', path = '')
         root.save()
 
+        for file in repo.changectx("tip"):
+            get_path(repository, file)
+
         return repository
 
+pathcache = dict()
 def get_path(repository, path):
+    if path in pathcache:
+        return pathcache[path]
+
     try:
-        return Path.objects.get(repository = repository, path = path)
+        result = Path.objects.get(repository = repository, path = path)
+        pathcache[path] = result
+        return result
     except Path.DoesNotExist:
+        print("Adding path %s" % path)
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '')
         result = Path(repository = repository, path = path, name = parts[-1], parent = parent)
         result.save()
+        pathcache[path] = result
         return result
 
 def get_user(username):
@@ -59,7 +70,7 @@ def add_change(change):
 
 @transaction.commit_on_success
 def hook(ui, repo, node, **kwargs):
-    repository = get_repository(kwargs["url"])
+    repository = get_repository(repo, kwargs["url"])
 
     # All changesets from node to "tip" inclusive are part of this push.
     rev = repo.changectx(node).rev()
