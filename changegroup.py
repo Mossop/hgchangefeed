@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MAX_CHANGESETS = 1000
+DEFAULT_CHANGESETS = 1000
 
 from mercurial import demandimport;
 demandimport.disable()
@@ -139,21 +139,11 @@ def add_changesets(ui, repo, repository, rev, tip):
     Change.objects.bulk_create(changes)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, len(changes)))
 
-    oldsets = Changeset.objects.all()[MAX_CHANGESETS:]
-    pos = 0
-    for changeset in oldsets:
-        ui.progress("expiring changesets", pos, changectx.hex(), total = len(oldsets))
-        changeset.delete()
-        pos = pos + 1
-    ui.progress("expiring changesets", None)
-    if len(oldsets) > 0:
-        ui.status("expired %d changesets from database\n" % len(oldsets))
-
-    return False
-
 @transaction.commit_on_success
 def hook(ui, repo, node, **kwargs):
-    url = kwargs["url"]
+    max_changesets = int(ui.config("hgchangefeed", "changesets", default = DEFAULT_CHANGESETS))
+
+    url = ui.config("hgchangefeed", "url", default = kwargs["url"])
     tip = repo.changectx("tip")
 
     try:
@@ -161,14 +151,27 @@ def hook(ui, repo, node, **kwargs):
 
         # Existing repository, only add new changesets
         # All changesets from node to "tip" inclusive are part of this push.
-        rev = max(tip.rev() - MAX_CHANGESETS, repo.changectx(node).rev())
+        rev = max(tip.rev() - max_changesets, repo.changectx(node).rev())
         add_changesets(ui, repo, repository, rev, tip.rev())
 
+        oldsets = Changeset.objects.all()[max_changesets:]
+        pos = 0
+        for changeset in oldsets:
+            ui.progress("expiring changesets", pos, changectx.hex(), total = len(oldsets))
+            changeset.delete()
+            pos = pos + 1
+        ui.progress("expiring changesets", None)
+        if len(oldsets) > 0:
+            ui.status("expired %d changesets from database\n" % len(oldsets))
+
     except Repository.DoesNotExist:
-        stripped = url
-        if url[-1] == "/":
-            stripped = url[:-1]
-        name = stripped.split("/")[-1]
+        name = ui.config("hgchangefeed", "name")
+
+        if name is None:
+            stripped = url
+            if url[-1] == "/":
+                stripped = url[:-1]
+            name = stripped.split("/")[-1]
 
         repository = Repository(url = url, name = name)
         repository.save()
@@ -176,5 +179,7 @@ def hook(ui, repo, node, **kwargs):
         add_paths(ui, repository, [f for f in tip])
 
         # New repository, attempt to add the maximum number of changesets
-        rev = tip.rev() + 1 - MAX_CHANGESETS
+        rev = tip.rev() + 1 - max_changesets
         add_changesets(ui, repo, repository, rev, tip.rev())
+
+    return False
