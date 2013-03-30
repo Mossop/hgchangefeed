@@ -3,7 +3,7 @@
 {% block sidebar %}
 <ul>
 {% for repository in repositories %}
-    <li><a href="{% url 'path' repository.name '' %}">{{ repository.name }}</a></li>
+    <li class="path repository"><a href="{% url 'path' repository.name '' %}">{{ repository.name }}</a></li>
 {% endfor %}
 </ul>
 {% endblock %}

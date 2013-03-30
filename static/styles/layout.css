@@ -29,6 +29,25 @@ body {
   margin-bottom: 0.5em;
 }
 
+.path {
+  line-height: 16px;
+  padding-left: 20px;
+  background-position: left center;
+  background-repeat: no-repeat;
+}
+
+.directory {
+  background-image: url(../images/folder.png);
+}
+
+.file {
+  background-image: url(../images/script.png);
+}
+
+.repository {
+  background-image: url(../images/drawer.png);
+}
+
 #content p {
   margin-bottom: 0.5em;
 }
@@ -44,6 +63,10 @@ body {
 
 .changesets tr:nth-child(even) {
   background-color: rgb(246, 246, 240);
+}
+
+.changesets .meta {
+  white-space: nowrap;
 }
 
 .changesets .author {

@@ -24,6 +24,9 @@ class Path(models.Model):
     parent = models.ForeignKey('self', related_name = "children", null = True)
     repository = models.ForeignKey(Repository)
 
+    def is_dir(self):
+        return self.children.count() > 0
+
     def parentlist(self):
         result = []
         parent = self
