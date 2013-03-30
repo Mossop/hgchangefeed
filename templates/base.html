@@ -4,6 +4,7 @@
 <head>
   <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}styles/reset.css">
   <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}styles/layout.css">
+{% block head %}{% endblock %}
   <title>{% block title %}HG Change Feed{% endblock %}</title>
 </head>
 <body class="{% block bodyclass %}{% endblock %}">

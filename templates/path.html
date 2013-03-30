@@ -3,6 +3,7 @@
 {% load tz %}
 {% load mercurial %}
 
+{% block head %}<link href="{% url 'feed' repository path %}" rel="alternate" type="application/rss+xml" title="RSS Feed" />{% endblock %}
 {% block title %}{{ repository }} {{ path }}{% endblock %}
 
 {% block heading %}
