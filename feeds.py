@@ -4,24 +4,42 @@ from django.core.urlresolvers import reverse
 
 from website.models import *
 
+TYPEMAP = {
+    "added": "A",
+    "removed": "R",
+    "modified": "M",
+}
+
+class PathFeedRequest(object):
+    def __init__(self, path, types):
+        self.path = path
+        self.types = types
+
 class PathFeed(Feed):
     description_template = 'pathfeed.html'
 
     def get_object(self, request, repository_name, path_name):
         repository = get_object_or_404(Repository, name = repository_name)
-        return get_object_or_404(Path, repository = repository, path = path_name)
+        path = get_object_or_404(Path, repository = repository, path = path_name)
+        types = None
+        if "types" in request.GET:
+            types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
+        return PathFeedRequest(path, types)
 
-    def title(self, path):
-        return "Changes in %s %s" % (path.repository, path)
+    def title(self, req):
+        return "Changes in %s %s" % (req.path.repository, req.path)
 
-    def link(self, path):
-        return reverse('path', args=[path.repository, path])
+    def link(self, req):
+        return reverse('path', args=[req.path.repository, req.path])
 
-    def description(self, path):
-        return "Changes recently made to %s in %s" % (path, path.repository)
+    def description(self, req):
+        return "Changes recently made to %s in %s" % (req.path, req.path.repository)
 
-    def items(self, path):
-        return Changeset.objects.filter(changes__pathlist__in = [path]).distinct()[:20]
+    def items(self, req):
+        changesets = Changeset.objects.filter(changes__pathlist__in = [req.path]).distinct()
+        if req.types is not None:
+            changesets = [c for c in changesets if c.changes.filter(type__in = req.types).count() > 0]
+        return changesets[:20]
 
     def item_title(self, changeset):
         return "Changeset %s" % changeset
