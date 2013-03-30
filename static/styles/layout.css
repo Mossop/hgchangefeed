@@ -115,7 +115,7 @@ div.description {
   background-image: url(../images/pencil.png);
 }
 
-.filechanges .Deleted {
+.filechanges .Removed {
   background-image: url(../images/minus-circle-frame.png);
 }
 

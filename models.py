@@ -4,7 +4,7 @@ from django.utils.tzinfo import FixedOffset
 CHANGE_TYPES = (
     ("A", "Added"),
     ("M", "Modified"),
-    ("D", "Deleted"),
+    ("R", "Removed"),
 )
 
 class Repository(models.Model):
