@@ -13,7 +13,7 @@ def path(request, repository_name, path_name):
     context = {
       "repository": repository,
       "path": path,
-      "changesets": Changeset.objects.filter(changes__pathlist__in = [path]).distinct(),
+      "changesets": Changeset.objects.filter(changes__pathlist__in = [path]).distinct()[:100],
       "paths": path.children.all(),
     }
     return render(request, "path.html", context)
@@ -25,6 +25,5 @@ def changeset(request, repository_name, changeset_id):
       "repository": repository,
       "changeset": changeset,
       "changes": changeset.changes.order_by("path__path"),
-      "paths": Path.objects.filter(allchanges__changeset = changeset).distinct(),
     }
     return render(request, "changeset.html", context)
