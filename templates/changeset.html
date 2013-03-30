@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<p class="summary">{{ changeset.description|summarise }}</p>
+<p class="summary">{{ changeset.description|summarise|bugzilla }}</p>
 
 <table class="meta">
   <tr><td class="label">Author:</td><td>{{ changeset.user }}</td></tr>
@@ -19,7 +19,7 @@
   <tr><td class="label">Pushlog:</td><td><a href="{{ changeset.pushlog }}">{{ changeset }}</a></td></tr>
 </table>
 
-<div class="description">{{ changeset.description|linebreaks }}</div>
+<div class="description">{{ changeset.description|bugzilla|linebreaks }}</div>
 
 <table class="filechanges">
 {% for change in changes %}
