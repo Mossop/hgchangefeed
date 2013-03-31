@@ -4,6 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DEFAULT_CHANGESETS = 1000
+BATCH_SIZE = 500
 
 from mercurial import demandimport;
 demandimport.disable()
@@ -29,6 +30,7 @@ def add_paths(ui, repository, files):
     root = Path(repository = repository, name = '', path = '', parentpath = '')
     paths = [root]
     parentlist = [root]
+    path_count = 1
 
     pos = 0
     for file in files:
@@ -56,15 +58,22 @@ def add_paths(ui, repository, files):
                            parentpath = parentlist[-1].path,
                            is_dir = True if len(remains) else False)
             paths.append(newpath)
+            path_count = path_count + 1
+
+            if len(paths) >= BATCH_SIZE:
+                Path.objects.bulk_create(paths)
+                paths = []
 
             if len(remains):
                 parentlist.append(newpath)
 
         pos = pos + 1
 
+    if len(paths):
+        Path.objects.bulk_create(paths)
+
     ui.progress("indexing files", None)
-    Path.objects.bulk_create(paths)
-    ui.status("added %d files to database\n" % len(paths))
+    ui.status("added %d files to database\n" % path_count)
 
 def get_path(repository, path, is_dir = False):
     try:
@@ -83,6 +92,7 @@ def get_author(author):
 def add_changesets(ui, repo, repository, rev, tip):
     changeset_count = 0
     changes = []
+    change_count = 0
 
     for i in xrange(rev, tip + 1):
         changectx = repo.changectx(i)
@@ -109,6 +119,7 @@ def add_changesets(ui, repo, repository, rev, tip):
 
         parents = changectx.parents()
 
+        added = False
         for file in changectx.files():
             path = get_path(repository, file)
 
@@ -128,16 +139,24 @@ def add_changesets(ui, repo, repository, rev, tip):
                 else:
                     continue
 
+            added = True
             changes.append(Change(changeset = changeset, path = path, type = type))
+            change_count = change_count + 1
 
-        if len(changes) == 0:
+            if len(changes) >= BATCH_SIZE:
+                Change.objects.bulk_create(changes)
+                changes = []
+
+        if not added:
             changeset.delete()
         else:
             changeset_count = changeset_count + 1
 
+    if len(changes):
+        Change.objects.bulk_create(changes)
+
     ui.progress("indexing changesets", None)
-    Change.objects.bulk_create(changes)
-    ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, len(changes)))
+    ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
 
 @transaction.commit_on_success
 def hook(ui, repo, node, **kwargs):
