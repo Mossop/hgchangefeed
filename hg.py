@@ -246,25 +246,27 @@ def delete(ui, repo, config, args):
         repository = Repository.objects.get(localpath = repo.root)
 
         from django.conf import settings
-        if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
-            ui.status("Using slow deletion path due to django ticket 16426\n")
-            count = 0
-            changesets = Changeset.objects.filter(repository = repository)
-            for c in changesets:
-                ui.progress("deleting changesets", count, c.hex, total = len(changesets))
-                c.delete()
-                count = count + 1
-            ui.progress("deleting changesets", None)
-            ui.status("deleted changesets\n")
+        count = 0
+        changesets = Changeset.objects.filter(repository = repository)
+        for c in changesets:
+            ui.progress("deleting changesets", count, c.hex, total = len(changesets))
+            c.delete()
+            count = count + 1
+        ui.progress("deleting changesets", None)
+        ui.status("deleted changesets\n")
 
-            count = 0
-            paths = [p for p in reversed(sorted(Path.objects.filter(repository = repository)))]
+        count = 0
+        path_count = Path.objects.filter(repository = repository).count()
+        remains = path_count
+        while remains > 0:
+            paths = Path.objects.filter(repository = repository).order_by("-path")[:BATCH_SIZE]
             for p in paths:
-                ui.progress("deleting paths", count, p, total = len(paths))
+                ui.progress("deleting paths", count, p, total = path_count)
                 p.delete()
                 count = count + 1
-            ui.progress("deleting paths", None)
-            ui.status("deleted paths\n")
+            remains = Path.objects.filter(repository = repository).count()
+        ui.progress("deleting paths", None)
+        ui.status("deleted paths\n")
 
         repository.delete()
         ui.status("deleted repository\n")
