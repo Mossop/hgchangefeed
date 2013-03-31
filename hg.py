@@ -102,6 +102,7 @@ def get_author(author):
     result, created = Author.objects.get_or_create(author = unicode(author, encoding))
     return result
 
+@transaction.commit_on_success()
 def add_changesets(ui, repo, options, repository, rev, tip):
     changeset_count = 0
     changes = []
@@ -184,12 +185,20 @@ def add_changesets(ui, repo, options, repository, rev, tip):
     ui.progress("indexing changesets", None)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
 
+@transaction.commit_manually()
 def add_repository(ui, repo, options):
-    repository = Repository(localpath = repo.root, url = options.url, name = options.name)
-    repository.save()
+    # If adding paths fails then we want to roll back the repository info too
+    try:
+        repository = Repository(localpath = repo.root, url = options.url, name = options.name)
+        repository.save()
 
-    tip = repo.changectx("tip")
-    add_paths(ui, repository, [f for f in tip])
+        tip = repo.changectx("tip")
+        add_paths(ui, repository, [f for f in tip])
+    except:
+        transaction.rollback()
+        raise
+    else:
+        transaction.commit()
 
     # New repository, attempt to add the maximum number of changesets
     rev = tip.rev() + 1 - options.max_changesets
@@ -206,7 +215,6 @@ def expire_changesets(ui, repo, options):
     if len(oldsets) > 0:
         ui.status("expired %d changesets from database\n" % len(oldsets))
 
-@transaction.commit_on_success
 def pretxnchangegroup(ui, repo, node, **kwargs):
     options = Options(ui, repo, kwargs["url"])
 
@@ -229,7 +237,6 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
 
     return False
 
-@transaction.commit_on_success
 def init(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -237,7 +244,7 @@ def init(ui, repo, options):
     except Repository.DoesNotExist:
         add_repository(ui, repo, options)
 
-@transaction.commit_on_success
+@transaction.commit_on_success()
 def fixrevs(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -259,7 +266,6 @@ def fixrevs(ui, repo, options):
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
-@transaction.commit_on_success
 def update(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -269,7 +275,6 @@ def update(ui, repo, options):
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
-@transaction.commit_on_success
 def reset(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -284,7 +289,7 @@ def reset(ui, repo, options):
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
-@transaction.commit_on_success
+@transaction.commit_on_success()
 def delete(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
