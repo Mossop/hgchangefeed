@@ -238,6 +238,28 @@ def init(ui, repo, options):
         add_repository(ui, repo, options)
 
 @transaction.commit_on_success
+def fixrevs(ui, repo, options):
+    try:
+        repository = Repository.objects.get(localpath = repo.root)
+
+        update_count = 0
+        count = 0
+        changesets = Changeset.objects.filter(repository = repository)
+        for changeset in changesets:
+            ui.progress("updating changesets", count, changeset.hex, total = changesets.count())
+            changectx = repo.changectx(changeset.hex)
+            if changectx.rev() != changeset.rev:
+                changeset.rev = changectx.rev()
+                changeset.save()
+                update_count = update_count + 1
+            count = count + 1
+        ui.progress("updating changesets", None)
+        ui.status("corrected %d changesets\n" % update_count)
+
+    except Repository.DoesNotExist:
+        raise Exception("Repository doesn't exist in the database")
+
+@transaction.commit_on_success
 def update(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -309,7 +331,7 @@ def cmdline():
         options = Options(ui, repo)
 
         parser = argparse.ArgumentParser(description='Bootstrap hgchangefeed database for a mercurial repository.')
-        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "update", "reset", "delete"],
+        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "update", "fixrevs", "reset", "delete"],
                             help = "Command to run (init|update|reset|delete)")
         parser.add_argument("--changesets", dest = "onlychangesets", action = 'store_const',
                             const = True, default = False,
@@ -324,6 +346,8 @@ def cmdline():
 
         if options.command == "init":
             init(ui, repo, options)
+        elif options.command == "fixrevs":
+            fixrevs(ui, repo, options)
         elif options.command == "update":
             update(ui, repo, options)
         elif options.command == "reset":
