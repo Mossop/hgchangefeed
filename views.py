@@ -31,11 +31,16 @@ def path(request, repository_name, path_name):
         types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
         changesets = [c for c in changesets if c.changes.filter(type__in = types).count() > 0]
 
+    query = request.GET.urlencode()
+    if query:
+        query = "?" + query
+
     context = {
       "repository": repository,
       "path": path,
       "changesets": changesets[:200],
       "paths": sorted(path.children, path_cmp),
+      "query": query,
     }
     return render(request, "path.html", context)
 
