@@ -103,15 +103,17 @@ def get_author(author):
     return result
 
 @transaction.commit_on_success()
-def add_changesets(ui, repo, options, repository, rev, tip):
+def add_changesets(ui, repo, options, repository, revisions):
     changeset_count = 0
     changes = []
     descendants = []
     change_count = 0
 
-    for i in xrange(rev, tip + 1):
+    pos = 0
+    for i in revisions:
         changectx = repo.changectx(i)
-        ui.progress("indexing changesets", i - rev, changectx.hex(), total = tip - rev + 1)
+        ui.progress("indexing changesets", pos, changectx.hex(), total = len(revisions))
+        pos = pos + 1
 
         tz = FixedOffset(-changectx.date()[1] / 60)
         date = datetime.fromtimestamp(changectx.date()[0], tz)
@@ -201,8 +203,8 @@ def add_repository(ui, repo, options):
         transaction.commit()
 
     # New repository, attempt to add the maximum number of changesets
-    rev = tip.rev() + 1 - options.max_changesets
-    add_changesets(ui, repo, options, repository, rev, tip.rev())
+    rev = tip.rev() - options.max_changesets
+    add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
 
 def expire_changesets(ui, repo, options):
     oldsets = Changeset.objects.all()[options.max_changesets:]
@@ -228,7 +230,7 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
         # All changesets from node to "tip" inclusive are part of this push.
         tip = repo.changectx("tip")
         rev = max(tip.rev() - options.max_changesets, repo.changectx(node).rev())
-        add_changesets(ui, repo, options, repository, rev, tip.rev())
+        add_changesets(ui, repo, options, repository, xrange(rev, tip.rev() + 1))
 
         expire_changesets(ui, repo, options)
 
@@ -270,8 +272,8 @@ def update(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
         tip = repo.changectx("tip")
-        rev = tip.rev() + 1 - options.max_changesets
-        add_changesets(ui, repo, options, repository, rev, tip.rev())
+        rev = tip.rev() - options.max_changesets
+        add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
@@ -282,8 +284,8 @@ def reset(ui, repo, options):
 
         if options.onlychangesets:
             tip = repo.changectx("tip")
-            rev = tip.rev() + 1 - options.max_changesets
-            add_changesets(ui, repo, options, repository, rev, tip.rev())
+            rev = tip.rev() - options.max_changesets
+            add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
         else:
             init(ui, repo, options)
     except Repository.DoesNotExist:
