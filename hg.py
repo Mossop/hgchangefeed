@@ -29,6 +29,16 @@ from django.utils.tzinfo import FixedOffset
 
 from website.models import *
 
+class Options(object):
+    def __init__(self, ui, repo, url = None):
+        self.max_changesets = int(ui.config("hgchangefeed", "maxchangesets", default = DEFAULT_CHANGESETS))
+        self.url = ui.config("hgchangefeed", "url", default = url)
+        self.name = ui.config("hgchangefeed", "name")
+        self.replace_stale = ui.configbool("hgchangefeed", "replacestale", False)
+
+        if self.name is None:
+            self.name = os.path.basename(repo.root)
+
 def add_paths(ui, repository, files):
     root = Path(id = get_next_path_id(), repository = repository, name = '', path = '', parent = None)
     paths = [root]
@@ -92,7 +102,7 @@ def get_author(author):
     result, created = Author.objects.get_or_create(author = unicode(author, encoding))
     return result
 
-def add_changesets(ui, repo, repository, rev, tip):
+def add_changesets(ui, repo, options, repository, rev, tip):
     changeset_count = 0
     changes = []
     descendants = []
@@ -107,8 +117,11 @@ def add_changesets(ui, repo, repository, rev, tip):
 
         try:
             changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
-            ui.warn("deleting stale information for changeset %s\n" % changeset)
-            changeset.delete()
+            if options.replace_stale:
+                ui.warn("deleting stale information for changeset %s\n" % changeset)
+                changeset.delete()
+            else:
+                continue
         except:
             pass
 
@@ -154,7 +167,7 @@ def add_changesets(ui, repo, repository, rev, tip):
                 path = path.parent
                 depth = depth + 1
 
-            if len(changes) >= BATCH_SIZE:
+            if (len(changes) + len(descendants)) >= BATCH_SIZE:
                 Change.objects.bulk_create(changes)
                 DescendantChange.objects.bulk_create(descendants)
                 changes = []
@@ -171,77 +184,86 @@ def add_changesets(ui, repo, repository, rev, tip):
     ui.progress("indexing changesets", None)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
 
-def get_config(ui, repo, url = None):
-    config = {}
-    config["max_changesets"] = int(ui.config("hgchangefeed", "changesets", default = DEFAULT_CHANGESETS))
-    config["url"] = ui.config("hgchangefeed", "url", default = url)
-    config["name"] = ui.config("hgchangefeed", "name")
-
-    if config["name"] is None:
-        config["name"] = os.path.basename(repo.root)
-
-    return config
-
-def add_repository(ui, repo, config):
-    repository = Repository(localpath = repo.root, url = config["url"], name = config["name"])
+def add_repository(ui, repo, options):
+    repository = Repository(localpath = repo.root, url = options.url, name = options.name)
     repository.save()
 
     tip = repo.changectx("tip")
     add_paths(ui, repository, [f for f in tip])
 
     # New repository, attempt to add the maximum number of changesets
-    rev = tip.rev() + 1 - config["max_changesets"]
-    add_changesets(ui, repo, repository, rev, tip.rev())
+    rev = tip.rev() + 1 - options.max_changesets
+    add_changesets(ui, repo, options, repository, rev, tip.rev())
+
+def expire_changesets(ui, repo, options):
+    oldsets = Changeset.objects.all()[options.max_changesets:]
+    pos = 0
+    for changeset in oldsets:
+        ui.progress("expiring changesets", pos, changeset.hex, total = len(oldsets))
+        changeset.delete()
+        pos = pos + 1
+    ui.progress("expiring changesets", None)
+    if len(oldsets) > 0:
+        ui.status("expired %d changesets from database\n" % len(oldsets))
 
 @transaction.commit_on_success
 def pretxnchangegroup(ui, repo, node, **kwargs):
-    config = get_config(ui, repo, kwargs["url"])
+    options = Options(ui, repo, kwargs["url"])
 
     try:
         repository = Repository.objects.get(localpath = repo.root)
-        if repository.url is None and config["url"] is not None:
-            repository.url = config["url"]
+        if repository.url is None and options.url is not None:
+            repository.url = options.url
             repository.save()
 
         # Existing repository, only add new changesets
         # All changesets from node to "tip" inclusive are part of this push.
         tip = repo.changectx("tip")
-        rev = max(tip.rev() - config["max_changesets"], repo.changectx(node).rev())
-        add_changesets(ui, repo, repository, rev, tip.rev())
+        rev = max(tip.rev() - options.max_changesets, repo.changectx(node).rev())
+        add_changesets(ui, repo, options, repository, rev, tip.rev())
 
-        oldsets = Changeset.objects.all()[config["max_changesets"]:]
-        pos = 0
-        for changeset in oldsets:
-            ui.progress("expiring changesets", pos, changectx.hex(), total = len(oldsets))
-            changeset.delete()
-            pos = pos + 1
-        ui.progress("expiring changesets", None)
-        if len(oldsets) > 0:
-            ui.status("expired %d changesets from database\n" % len(oldsets))
+        expire_changesets(ui, repo, options)
 
     except Repository.DoesNotExist:
-        add_repository(ui, repo, config)
+        add_repository(ui, repo, options)
 
     return False
 
 @transaction.commit_on_success
-def init(ui, repo, config, args):
+def init(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
         raise Exception("Repository already exists in the database")
     except Repository.DoesNotExist:
-        add_repository(ui, repo, config)
+        add_repository(ui, repo, options)
 
 @transaction.commit_on_success
-def reset(ui, repo, config, args):
+def update(ui, repo, options):
     try:
-        delete(ui, repo, config, args)
-        init(ui, repo, config, args)
+        repository = Repository.objects.get(localpath = repo.root)
+        tip = repo.changectx("tip")
+        rev = tip.rev() + 1 - options.max_changesets
+        add_changesets(ui, repo, options, repository, rev, tip.rev())
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
 @transaction.commit_on_success
-def delete(ui, repo, config, args):
+def reset(ui, repo, options):
+    try:
+        repository = Repository.objects.get(localpath = repo.root)
+        delete(ui, repo, options)
+
+        if options.onlychangesets:
+            tip = repo.changectx("tip")
+            rev = tip.rev() + 1 - options.max_changesets
+            add_changesets(ui, repo, options, repository, rev, tip.rev())
+        else:
+            init(ui, repo, options)
+    except Repository.DoesNotExist:
+        raise Exception("Repository doesn't exist in the database")
+
+@transaction.commit_on_success
+def delete(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
 
@@ -254,6 +276,9 @@ def delete(ui, repo, config, args):
             count = count + 1
         ui.progress("deleting changesets", None)
         ui.status("deleted changesets\n")
+
+        if options.onlychangesets:
+            return
 
         count = 0
         path_count = Path.objects.filter(repository = repository).count()
@@ -281,19 +306,30 @@ def cmdline():
     try:
         repo = hg.repository(ui, os.getcwd())
         ui = repo.ui
+        options = Options(ui, repo)
 
         parser = argparse.ArgumentParser(description='Bootstrap hgchangefeed database for a mercurial repository.')
-        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "reset", "delete"],
-                            help = "Command to run (init|reset|delete)")
-        args = parser.parse_args()
-        config = get_config(ui, repo)
+        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "update", "reset", "delete"],
+                            help = "Command to run (init|update|reset|delete)")
+        parser.add_argument("--changesets", dest = "onlychangesets", action = 'store_const',
+                            const = True, default = False,
+                            help = "Only delete/reset changesets")
+        parser.add_argument("--maxchangesets", dest = "max_changesets", type = int,
+                            default = argparse.SUPPRESS,
+                            help = "The maximum changesets to keep in the database")
+        parser.add_argument("--replacestale", dest = "replace_stale", action = 'store_const',
+                            const = True,
+                            help = "Replace any stale changesets when updating")
+        parser.parse_args(namespace = options)
 
-        if args.command == "init":
-            init(ui, repo, config, args)
-        elif args.command == "reset":
-            reset(ui, repo, config, args)
-        elif args.command == "delete":
-            delete(ui, repo, config, args)
+        if options.command == "init":
+            init(ui, repo, options)
+        elif options.command == "update":
+            update(ui, repo, options)
+        elif options.command == "reset":
+            reset(ui, repo, options)
+        elif options.command == "delete":
+            delete(ui, repo, options)
 
     except error.RepoError:
         ui.warn("%s is not a mercurial repository.\n" % os.getcwd())
