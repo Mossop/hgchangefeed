@@ -11,6 +11,28 @@ CHANGE_TYPES = (
     ("R", "Removed"),
 )
 
+max_path_id = None
+def get_next_path_id():
+    global max_path_id
+    if max_path_id is None:
+        max_path_id = Path.objects.aggregate(models.Max('id'))["id__max"]
+        if max_path_id is None:
+            max_path_id = 1
+    else:
+        max_path_id = max_path_id + 1
+    return max_path_id
+
+max_change_id = None
+def get_next_change_id():
+    global max_change_id
+    if max_change_id is None:
+        max_change_id = Change.objects.aggregate(models.Max('id'))["id__max"]
+        if max_change_id is None:
+            max_change_id = 1
+    else:
+        max_change_id = max_change_id + 1
+    return max_change_id
+
 class Repository(models.Model):
     url = models.CharField(max_length = 255, unique = True)
     name = models.CharField(max_length = 50, unique = True)
@@ -103,6 +125,7 @@ class Changeset(models.Model):
         get_latest_by = "rev"
 
 class Change(models.Model):
+    id = models.IntegerField(primary_key = True)
     changeset = models.ForeignKey(Changeset, related_name = "changes")
     path = models.ForeignKey(Path, related_name = "changes")
     type = models.CharField(max_length = 1, choices = CHANGE_TYPES)
@@ -112,3 +135,11 @@ class Change(models.Model):
 
     class Meta:
         unique_together = ("changeset", "path")
+
+class DescendantChange(models.Model):
+    change = models.ForeignKey(Change, related_name = "pathlist")
+    path = models.ForeignKey(Path, related_name = "descendant_changes")
+    depth = models.IntegerField()
+
+    class Meta:
+        unique_together = ("change", "path")

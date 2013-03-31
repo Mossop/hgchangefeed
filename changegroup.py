@@ -22,18 +22,9 @@ from datetime import datetime
 from mercurial.encoding import encoding
 
 from django.db import transaction
-from django.db.models import Max
 from django.utils.tzinfo import FixedOffset
 
 from website.models import *
-
-max_path_id = Path.objects.aggregate(Max('id'))["id__max"]
-if max_path_id is None:
-    max_path_id = -1
-def get_next_path_id():
-    global max_path_id
-    max_path_id = max_path_id + 1
-    return max_path_id
 
 def add_paths(ui, repository, files):
     root = Path(id = get_next_path_id(), repository = repository, name = '', path = '', parent = None)
@@ -101,6 +92,7 @@ def get_author(author):
 def add_changesets(ui, repo, repository, rev, tip):
     changeset_count = 0
     changes = []
+    descendants = []
     change_count = 0
 
     for i in xrange(rev, tip + 1):
@@ -149,20 +141,29 @@ def add_changesets(ui, repo, repository, rev, tip):
                     continue
 
             added = True
-            changes.append(Change(changeset = changeset, path = path, type = type))
+            change = Change(id = get_next_change_id(), changeset = changeset, path = path, type = type)
+            changes.append(change)
             change_count = change_count + 1
+
+            depth = 0
+            while path is not None:
+                descendants.append(DescendantChange(change = change, path = path, depth = depth))
+                path = path.parent
+                depth = depth + 1
 
             if len(changes) >= BATCH_SIZE:
                 Change.objects.bulk_create(changes)
+                DescendantChange.objects.bulk_create(descendants)
                 changes = []
+                descendants = []
 
         if not added:
             changeset.delete()
         else:
             changeset_count = changeset_count + 1
 
-    if len(changes):
-        Change.objects.bulk_create(changes)
+    Change.objects.bulk_create(changes)
+    DescendantChange.objects.bulk_create(descendants)
 
     ui.progress("indexing changesets", None)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))

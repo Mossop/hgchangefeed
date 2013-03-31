@@ -41,7 +41,7 @@ class PathFeed(Feed):
 
     def items(self, req):
         queryparams = {
-            "changes__path__path__startswith": req.path.path,
+            "changes__pathlist__path": req.path,
         }
 
         if req.types is not None:
