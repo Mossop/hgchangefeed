@@ -20,6 +20,9 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'hgchangefeed.settings'
 from datetime import datetime
 
 from mercurial.encoding import encoding
+from mercurial import hg
+from mercurial import error
+import mercurial.ui
 
 from django.db import transaction
 from django.utils.tzinfo import FixedOffset
@@ -168,22 +171,45 @@ def add_changesets(ui, repo, repository, rev, tip):
     ui.progress("indexing changesets", None)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
 
-@transaction.commit_on_success
-def hook(ui, repo, node, **kwargs):
-    max_changesets = int(ui.config("hgchangefeed", "changesets", default = DEFAULT_CHANGESETS))
+def get_config(ui, repo, url = None):
+    config = {}
+    config["max_changesets"] = int(ui.config("hgchangefeed", "changesets", default = DEFAULT_CHANGESETS))
+    config["url"] = ui.config("hgchangefeed", "url", default = url)
+    config["name"] = ui.config("hgchangefeed", "name")
 
-    url = ui.config("hgchangefeed", "url", default = kwargs["url"])
+    if config["name"] is None:
+        config["name"] = os.path.basename(repo.root)
+
+    return config
+
+def add_repository(ui, repo, config):
+    repository = Repository(localpath = repo.root, url = config["url"], name = config["name"])
+    repository.save()
+
     tip = repo.changectx("tip")
+    add_paths(ui, repository, [f for f in tip])
+
+    # New repository, attempt to add the maximum number of changesets
+    rev = tip.rev() + 1 - config["max_changesets"]
+    add_changesets(ui, repo, repository, rev, tip.rev())
+
+@transaction.commit_on_success
+def pretxnchangegroup(ui, repo, node, **kwargs):
+    config = get_config(ui, repo, kwargs["url"])
 
     try:
-        repository = Repository.objects.get(url = url)
+        repository = Repository.objects.get(localpath = repo.root)
+        if repository.url is None and config["url"] is not None:
+            repository.url = config["url"]
+            repository.save()
 
         # Existing repository, only add new changesets
         # All changesets from node to "tip" inclusive are part of this push.
-        rev = max(tip.rev() - max_changesets, repo.changectx(node).rev())
+        tip = repo.changectx("tip")
+        rev = max(tip.rev() - config["max_changesets"], repo.changectx(node).rev())
         add_changesets(ui, repo, repository, rev, tip.rev())
 
-        oldsets = Changeset.objects.all()[max_changesets:]
+        oldsets = Changeset.objects.all()[config["max_changesets"]:]
         pos = 0
         for changeset in oldsets:
             ui.progress("expiring changesets", pos, changectx.hex(), total = len(oldsets))
@@ -194,21 +220,81 @@ def hook(ui, repo, node, **kwargs):
             ui.status("expired %d changesets from database\n" % len(oldsets))
 
     except Repository.DoesNotExist:
-        name = ui.config("hgchangefeed", "name")
-
-        if name is None:
-            stripped = url
-            if url[-1] == "/":
-                stripped = url[:-1]
-            name = stripped.split("/")[-1]
-
-        repository = Repository(url = url, name = name)
-        repository.save()
-
-        add_paths(ui, repository, [f for f in tip])
-
-        # New repository, attempt to add the maximum number of changesets
-        rev = tip.rev() + 1 - max_changesets
-        add_changesets(ui, repo, repository, rev, tip.rev())
+        add_repository(ui, repo, config)
 
     return False
+
+@transaction.commit_on_success
+def init(ui, repo, config, args):
+    try:
+        repository = Repository.objects.get(localpath = repo.root)
+        raise Exception("Repository already exists in the database")
+    except Repository.DoesNotExist:
+        add_repository(ui, repo, config)
+
+@transaction.commit_on_success
+def reset(ui, repo, config, args):
+    try:
+        delete(ui, repo, config, args)
+        init(ui, repo, config, args)
+    except Repository.DoesNotExist:
+        raise Exception("Repository doesn't exist in the database")
+
+@transaction.commit_on_success
+def delete(ui, repo, config, args):
+    try:
+        repository = Repository.objects.get(localpath = repo.root)
+
+        from django.conf import settings
+        if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+            ui.status("Using slow deletion path due to django ticket 16426\n")
+            count = 0
+            changesets = Changeset.objects.filter(repository = repository)
+            for c in changesets:
+                ui.progress("deleting changesets", count, c.hex, total = len(changesets))
+                c.delete()
+                count = count + 1
+            ui.progress("deleting changesets", None)
+            ui.status("deleted changesets\n")
+
+            count = 0
+            paths = [p for p in reversed(sorted(Path.objects.filter(repository = repository)))]
+            for p in paths:
+                ui.progress("deleting paths", count, p, total = len(paths))
+                p.delete()
+                count = count + 1
+            ui.progress("deleting paths", None)
+            ui.status("deleted paths\n")
+
+        repository.delete()
+        ui.status("deleted repository\n")
+
+    except Repository.DoesNotExist:
+        raise Exception("Repository doesn't exist in the database")
+
+def cmdline():
+    import argparse
+
+    ui = mercurial.ui.ui()
+    try:
+        repo = hg.repository(ui, os.getcwd())
+        ui = repo.ui
+
+        parser = argparse.ArgumentParser(description='Bootstrap hgchangefeed database for a mercurial repository.')
+        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "reset", "delete"],
+                            help = "Command to run (init|reset|delete)")
+        args = parser.parse_args()
+        config = get_config(ui, repo)
+
+        if args.command == "init":
+            init(ui, repo, config, args)
+        elif args.command == "reset":
+            reset(ui, repo, config, args)
+        elif args.command == "delete":
+            delete(ui, repo, config, args)
+
+    except error.RepoError:
+        ui.warn("%s is not a mercurial repository.\n" % os.getcwd())
+
+if __name__ == "__main__":
+    cmdline()

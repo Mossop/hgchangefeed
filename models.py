@@ -32,7 +32,8 @@ def get_next_change_id():
     return max_change_id
 
 class Repository(models.Model):
-    url = models.CharField(max_length = 255, unique = True)
+    localpath = models.CharField(max_length = 255, unique = True)
+    url = models.TextField(null = True)
     name = models.CharField(max_length = 50, unique = True)
 
     @property
