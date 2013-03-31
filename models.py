@@ -17,9 +17,8 @@ def get_next_path_id():
     if max_path_id is None:
         max_path_id = Path.objects.aggregate(models.Max('id'))["id__max"]
         if max_path_id is None:
-            max_path_id = 1
-    else:
-        max_path_id = max_path_id + 1
+            max_path_id = 0
+    max_path_id = max_path_id + 1
     return max_path_id
 
 max_change_id = None
@@ -28,9 +27,8 @@ def get_next_change_id():
     if max_change_id is None:
         max_change_id = Change.objects.aggregate(models.Max('id'))["id__max"]
         if max_change_id is None:
-            max_change_id = 1
-    else:
-        max_change_id = max_change_id + 1
+            max_change_id = 0
+    max_change_id = max_change_id + 1
     return max_change_id
 
 class Repository(models.Model):
