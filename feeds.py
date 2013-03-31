@@ -40,10 +40,14 @@ class PathFeed(Feed):
         return "Changes recently made to %s in %s" % (req.path, req.path.repository)
 
     def items(self, req):
-        changesets = Changeset.objects.filter(changes__path__path__startswith = req.path.path).distinct()
+        queryparams = {
+            "changes__path__path__startswith": req.path.path,
+        }
+
         if req.types is not None:
-            changesets = [c for c in changesets if c.changes.filter(type__in = req.types).count() > 0]
-        return changesets[:20]
+            queryparams["changes__type__in"] = req.types
+
+        return Changeset.objects.filter(**queryparams).distinct()[:20]
 
     def item_title(self, changeset):
         return "Changeset %s" % changeset

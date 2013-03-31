@@ -26,10 +26,15 @@ def path(request, repository_name, path_name):
     repository = get_object_or_404(Repository, name = repository_name)
     path = get_object_or_404(Path, repository = repository, path = path_name)
 
-    changesets = Changeset.objects.filter(changes__path__path__startswith = path.path).distinct()
+    queryparams = {
+        "changes__path__path__startswith": path.path,
+    }
+
     if "types" in request.GET:
         types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
-        changesets = [c for c in changesets if c.changes.filter(type__in = types).count() > 0]
+        queryparams["changes__type__in"] = types
+
+    changesets = Changeset.objects.filter(**queryparams).distinct()
 
     query = request.GET.urlencode()
     if query:
