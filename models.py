@@ -26,25 +26,12 @@ class Repository(models.Model):
         return self.name
 
 class Path(models.Model):
+    id = models.IntegerField(primary_key = True)
     name = models.TextField()
     path = models.TextField()
-    parentpath = models.TextField()
+    parent = models.ForeignKey("self", null = True, related_name = "children")
     repository = models.ForeignKey(Repository)
     is_dir = models.BooleanField()
-
-    @property
-    def parent(self):
-        if not self.path:
-            return None
-
-        try:
-            return Path.objects.get(repository = self.repository, path = self.parentpath)
-        except Path.DoesNotExist:
-            return None
-
-    @property
-    def children(self):
-        return Path.objects.filter(repository = self.repository, parentpath = self.path)
 
     def parentlist(self):
         result = []

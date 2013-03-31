@@ -22,12 +22,21 @@ from datetime import datetime
 from mercurial.encoding import encoding
 
 from django.db import transaction
+from django.db.models import Max
 from django.utils.tzinfo import FixedOffset
 
 from website.models import *
 
+max_path_id = Path.objects.aggregate(Max('id'))["id__max"]
+if max_path_id is None:
+    max_path_id = -1
+def get_next_path_id():
+    global max_path_id
+    max_path_id = max_path_id + 1
+    return max_path_id
+
 def add_paths(ui, repository, files):
-    root = Path(repository = repository, name = '', path = '', parentpath = '')
+    root = Path(id = get_next_path_id(), repository = repository, name = '', path = '', parent = None)
     paths = [root]
     parentlist = [root]
     path_count = 1
@@ -45,17 +54,17 @@ def add_paths(ui, repository, files):
 
         while len(remains):
             name = remains[0]
-            parentpath = parentlist[-1].path
-            path = parentpath
+            path = parentlist[-1].path
             if path:
                 path = path + "/"
             path = path + remains[0]
             remains.pop(0)
 
-            newpath = Path(repository = repository,
+            newpath = Path(id = get_next_path_id(),
+                           repository = repository,
                            name = name,
                            path = path,
-                           parentpath = parentlist[-1].path,
+                           parent = parentlist[-1],
                            is_dir = True if len(remains) else False)
             paths.append(newpath)
             path_count = path_count + 1
@@ -81,7 +90,7 @@ def get_path(repository, path, is_dir = False):
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
-        result = Path(repository = repository, path = path, name = parts[-1], parentpath = parent.path, is_dir = is_dir)
+        result = Path(id = get_next_path_id(), repository = repository, path = path, name = parts[-1], parent = parent, is_dir = is_dir)
         result.save()
         return result
 

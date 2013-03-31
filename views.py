@@ -44,7 +44,7 @@ def path(request, repository_name, path_name):
       "repository": repository,
       "path": path,
       "changesets": changesets[:200],
-      "paths": sorted(path.children, path_cmp),
+      "paths": sorted(path.children.all(), path_cmp),
       "query": query,
     }
     return render(request, "path.html", context)
