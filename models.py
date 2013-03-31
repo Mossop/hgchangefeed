@@ -11,25 +11,19 @@ CHANGE_TYPES = (
     ("R", "Removed"),
 )
 
-max_path_id = None
-def get_next_path_id():
-    global max_path_id
-    if max_path_id is None:
-        max_path_id = Path.objects.aggregate(models.Max('id'))["id__max"]
-        if max_path_id is None:
-            max_path_id = 0
-    max_path_id = max_path_id + 1
-    return max_path_id
+class ManagedPrimaryKey(models.Model):
+    @classmethod
+    def next_id(cls):
+        if not hasattr(cls, "max_id"):
+            max_id = cls.objects.aggregate(models.Max('id'))["id__max"]
+            if max_id is None:
+                max_id = 0
+            setattr(cls, "max_id", max_id)
+        cls.max_id = cls.max_id + 1
+        return cls.max_id
 
-max_change_id = None
-def get_next_change_id():
-    global max_change_id
-    if max_change_id is None:
-        max_change_id = Change.objects.aggregate(models.Max('id'))["id__max"]
-        if max_change_id is None:
-            max_change_id = 0
-    max_change_id = max_change_id + 1
-    return max_change_id
+    class Meta:
+        abstract = True
 
 class Repository(models.Model):
     localpath = models.CharField(max_length = 255, unique = True)
@@ -46,7 +40,7 @@ class Repository(models.Model):
     def __unicode__(self):
         return self.name
 
-class Path(models.Model):
+class Path(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     name = models.TextField()
     path = models.TextField()
@@ -79,7 +73,8 @@ class Author(models.Model):
     def __unicode__(self):
         return self.name
 
-class Changeset(models.Model):
+class Changeset(ManagedPrimaryKey):
+    id = models.IntegerField(primary_key = True)
     repository = models.ForeignKey(Repository, related_name = "changesets")
     rev = models.IntegerField()
     hex = models.CharField(max_length = 40)
@@ -123,7 +118,7 @@ class Changeset(models.Model):
         ordering = ["-rev"]
         get_latest_by = "rev"
 
-class Change(models.Model):
+class Change(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     changeset = models.ForeignKey(Changeset, related_name = "changes")
     path = models.ForeignKey(Path, related_name = "changes")

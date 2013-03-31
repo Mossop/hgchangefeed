@@ -40,7 +40,7 @@ class Options(object):
             self.name = os.path.basename(repo.root)
 
 def add_paths(ui, repository, files):
-    root = Path(id = get_next_path_id(), repository = repository, name = '', path = '', parent = None)
+    root = Path(id = Path.next_id(), repository = repository, name = '', path = '', parent = None)
     paths = [root]
     parentlist = [root]
     path_count = 1
@@ -64,7 +64,7 @@ def add_paths(ui, repository, files):
             path = path + remains[0]
             remains.pop(0)
 
-            newpath = Path(id = get_next_path_id(),
+            newpath = Path(id = Path.next_id(),
                            repository = repository,
                            name = name,
                            path = path,
@@ -94,7 +94,7 @@ def get_path(repository, path, is_dir = False):
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
-        result = Path(id = get_next_path_id(), repository = repository, path = path, name = parts[-1], parent = parent, is_dir = is_dir)
+        result = Path(id = Path.next_id(), repository = repository, path = path, name = parts[-1], parent = parent, is_dir = is_dir)
         result.save()
         return result
 
@@ -103,7 +103,13 @@ def get_author(author):
     return result
 
 @transaction.commit_on_success()
+def bulk_insert(changesets, changes, descendants):
+    Changeset.objects.bulk_create(changesets)
+    Change.objects.bulk_create(changes)
+    DescendantChange.objects.bulk_create(descendants)
+
 def add_changesets(ui, repo, options, repository, revisions):
+    changesets = []
     changeset_count = 0
     changes = []
     descendants = []
@@ -128,14 +134,14 @@ def add_changesets(ui, repo, options, repository, revisions):
         except:
             pass
 
-        changeset = Changeset(repository = repository,
+        changeset = Changeset(Changeset.next_id(),
+                              repository = repository,
                               rev = changectx.rev(),
                               hex = changectx.hex(),
                               author = get_author(changectx.user()),
                               date = date,
                               tz = -changectx.date()[1] / 60,
                               description = unicode(changectx.description(), encoding))
-        changeset.save()
 
         parents = changectx.parents()
 
@@ -159,8 +165,12 @@ def add_changesets(ui, repo, options, repository, revisions):
                 else:
                     continue
 
-            added = True
-            change = Change(id = get_next_change_id(), changeset = changeset, path = path, type = type)
+            if not added:
+                changesets.append(changeset)
+                changeset_count = changeset_count + 1
+                added = True
+
+            change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
             changes.append(change)
             change_count = change_count + 1
 
@@ -170,19 +180,13 @@ def add_changesets(ui, repo, options, repository, revisions):
                 path = path.parent
                 depth = depth + 1
 
-            if (len(changes) + len(descendants)) >= BATCH_SIZE:
-                Change.objects.bulk_create(changes)
-                DescendantChange.objects.bulk_create(descendants)
-                changes = []
-                descendants = []
+        if (len(changesets) + len(changes) + len(descendants)) >= BATCH_SIZE:
+            bulk_insert(changesets, changes, descendants)
+            changesets = []
+            changes = []
+            descendants = []
 
-        if not added:
-            changeset.delete()
-        else:
-            changeset_count = changeset_count + 1
-
-    Change.objects.bulk_create(changes)
-    DescendantChange.objects.bulk_create(descendants)
+    bulk_insert(changesets, changes, descendants)
 
     ui.progress("indexing changesets", None)
     ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
