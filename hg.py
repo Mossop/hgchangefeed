@@ -210,8 +210,8 @@ def add_repository(ui, repo, options):
     rev = tip.rev() - options.max_changesets
     add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
 
-def expire_changesets(ui, repo, options):
-    oldsets = Changeset.objects.all()[options.max_changesets:]
+def expire_changesets(ui, repo, options, repository):
+    oldsets = Changeset.objects.filter(repository = repository)[options.max_changesets:]
     pos = 0
     for changeset in oldsets:
         ui.progress("expiring changesets", pos, changeset.hex, total = len(oldsets))
@@ -236,7 +236,7 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
         rev = max(tip.rev() - options.max_changesets, repo.changectx(node).rev())
         add_changesets(ui, repo, options, repository, xrange(rev, tip.rev() + 1))
 
-        expire_changesets(ui, repo, options)
+        expire_changesets(ui, repo, options, repository)
 
     except Repository.DoesNotExist:
         add_repository(ui, repo, options)
