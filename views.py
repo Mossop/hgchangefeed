@@ -27,7 +27,7 @@ def path(request, repository_name, path_name):
     path = get_object_or_404(Path, repository = repository, path = path_name)
 
     queryparams = {
-        "changes__pathlist__path": path,
+        "changes__path__ancestors__ancestor": path,
     }
 
     if "types" in request.GET:

@@ -41,7 +41,7 @@ class PathFeed(Feed):
 
     def items(self, req):
         queryparams = {
-            "changes__pathlist__path": req.path,
+            "changes__path__ancestors__ancestor": req.path,
         }
 
         if req.types is not None:
@@ -53,7 +53,7 @@ class PathFeed(Feed):
         return "Changeset %s" % changeset
 
     def item_author_name(self, changeset):
-        return changeset.author.name
+        return changeset.author.split(" <")[0]
 
     def item_pubdate(self, changeset):
         return changeset.localdate

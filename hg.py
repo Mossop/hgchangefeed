@@ -42,6 +42,7 @@ class Options(object):
 def add_paths(ui, repository, files):
     root = Path(id = Path.next_id(), repository = repository, name = '', path = '', parent = None)
     paths = [root]
+    ancestors = []
     parentlist = [root]
     path_count = 1
 
@@ -73,17 +74,25 @@ def add_paths(ui, repository, files):
             paths.append(newpath)
             path_count = path_count + 1
 
-            if len(paths) >= BATCH_SIZE:
+            depth = len(parentlist)
+            for ancestor in parentlist:
+                ancestors.append(Ancestor(path = newpath, ancestor = ancestor, depth = depth))
+                depth = depth - 1
+            ancestors.append(Ancestor(path = newpath, ancestor = newpath, depth = depth))
+
+            if len(paths) + len(ancestors) >= BATCH_SIZE:
                 Path.objects.bulk_create(paths)
+                Ancestor.objects.bulk_create(ancestors)
                 paths = []
+                ancestors = []
 
             if len(remains):
                 parentlist.append(newpath)
 
         pos = pos + 1
 
-    if len(paths):
-        Path.objects.bulk_create(paths)
+    Path.objects.bulk_create(paths)
+    Ancestor.objects.bulk_create(ancestors)
 
     ui.progress("indexing files", None)
     ui.status("added %d files to database\n" % path_count)
@@ -96,119 +105,115 @@ def get_path(repository, path, is_dir = False):
         parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
         result = Path(id = Path.next_id(), repository = repository, path = path, name = parts[-1], parent = parent, is_dir = is_dir)
         result.save()
+
+        ancestor = Ancestor(path = result, ancestor = result, depth = 0)
+        ancestor.save()
+
+        depth = 1
+        while parent is not None:
+            ancestor = Ancestor(path = result, ancestor = parent, depth = depth)
+            ancestor.save()
+            parent = parent.parent
+            depth = depth + 1
+
+        transaction.commit()
         return result
 
-def get_author(author):
-    result, created = Author.objects.get_or_create(author = unicode(author, encoding))
-    return result
-
-@transaction.commit_on_success()
-def bulk_insert(changesets, changes, descendants):
+def bulk_insert(changesets, changes):
     Changeset.objects.bulk_create(changesets)
     Change.objects.bulk_create(changes)
-    DescendantChange.objects.bulk_create(descendants)
-
-def add_changesets(ui, repo, options, repository, revisions):
-    changesets = []
-    changeset_count = 0
-    changes = []
-    descendants = []
-    change_count = 0
-
-    pos = 0
-    for i in revisions:
-        changectx = repo.changectx(i)
-        ui.progress("indexing changesets", pos, changectx.hex(), total = len(revisions))
-        pos = pos + 1
-
-        tz = FixedOffset(-changectx.date()[1] / 60)
-        date = datetime.fromtimestamp(changectx.date()[0], tz)
-
-        try:
-            changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
-            if options.replace_stale:
-                ui.warn("deleting stale information for changeset %s\n" % changeset)
-                changeset.delete()
-            else:
-                continue
-        except:
-            pass
-
-        changeset = Changeset(Changeset.next_id(),
-                              repository = repository,
-                              rev = changectx.rev(),
-                              hex = changectx.hex(),
-                              author = get_author(changectx.user()),
-                              date = date,
-                              tz = -changectx.date()[1] / 60,
-                              description = unicode(changectx.description(), encoding))
-
-        parents = changectx.parents()
-
-        added = False
-        for file in changectx.files():
-            path = get_path(repository, file)
-
-            type = "M"
-
-            if not file in changectx:
-                if all([file in c for c in parents]):
-                    type = "R"
-                else:
-                    continue
-            else:
-                filectx = changectx[file]
-                if not any([file in c for c in parents]):
-                    type = "A"
-                elif all([filectx.cmp(c[file]) for c in parents]):
-                    type = "M"
-                else:
-                    continue
-
-            if not added:
-                changesets.append(changeset)
-                changeset_count = changeset_count + 1
-                added = True
-
-            change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
-            changes.append(change)
-            change_count = change_count + 1
-
-            depth = 0
-            while path is not None:
-                descendants.append(DescendantChange(change = change, path = path, depth = depth))
-                path = path.parent
-                depth = depth + 1
-
-        if (len(changesets) + len(changes) + len(descendants)) >= BATCH_SIZE:
-            bulk_insert(changesets, changes, descendants)
-            changesets = []
-            changes = []
-            descendants = []
-
-    bulk_insert(changesets, changes, descendants)
-
-    ui.progress("indexing changesets", None)
-    ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
+    transaction.commit()
 
 @transaction.commit_manually()
-def add_repository(ui, repo, options):
-    # If adding paths fails then we want to roll back the repository info too
+def add_changesets(ui, repo, options, repository, revisions):
     try:
-        repository = Repository(localpath = repo.root, url = options.url, name = options.name)
-        repository.save()
+        changesets = []
+        changeset_count = 0
+        changes = []
+        change_count = 0
 
-        tip = repo.changectx("tip")
-        add_paths(ui, repository, [f for f in tip])
+        pos = 0
+        for i in revisions:
+            changectx = repo.changectx(i)
+            ui.progress("indexing changesets", pos, changectx.hex(), total = len(revisions))
+            pos = pos + 1
+
+            tz = FixedOffset(-changectx.date()[1] / 60)
+            date = datetime.fromtimestamp(changectx.date()[0], tz)
+
+            try:
+                changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
+                if options.replace_stale:
+                    ui.warn("deleting stale information for changeset %s\n" % changeset)
+                    changeset.delete()
+                else:
+                    continue
+            except:
+                pass
+
+            changeset = Changeset(Changeset.next_id(),
+                                  repository = repository,
+                                  rev = changectx.rev(),
+                                  hex = changectx.hex(),
+                                  author = unicode(changectx.user(), encoding),
+                                  date = date,
+                                  tz = -changectx.date()[1] / 60,
+                                  description = unicode(changectx.description(), encoding))
+
+            parents = changectx.parents()
+
+            added = False
+            for file in changectx.files():
+                path = get_path(repository, file)
+
+                type = "M"
+
+                if not file in changectx:
+                    if all([file in c for c in parents]):
+                        type = "R"
+                    else:
+                        continue
+                else:
+                    filectx = changectx[file]
+                    if not any([file in c for c in parents]):
+                        type = "A"
+                    elif all([filectx.cmp(c[file]) for c in parents]):
+                        type = "M"
+                    else:
+                        continue
+
+                if not added:
+                    changesets.append(changeset)
+                    changeset_count = changeset_count + 1
+                    added = True
+
+                change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
+                changes.append(change)
+                change_count = change_count + 1
+
+            if (len(changesets) + len(changes)) >= BATCH_SIZE:
+                bulk_insert(changesets, changes)
+                changesets = []
+                changes = []
+
+        bulk_insert(changesets, changes)
     except:
         transaction.rollback()
         raise
     else:
         transaction.commit()
 
-    # New repository, attempt to add the maximum number of changesets
-    rev = tip.rev() - options.max_changesets
-    add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
+    ui.progress("indexing changesets", None)
+    ui.status("added %d changesets with changes to %d files to database\n" % (changeset_count, change_count))
+
+@transaction.commit_on_success()
+def add_repository(ui, repo, options):
+    # If adding paths fails then we want to roll back the repository info too
+    repository = Repository(localpath = repo.root, url = options.url, name = options.name)
+    repository.save()
+
+    tip = repo.changectx("tip")
+    add_paths(ui, repository, [f for f in tip])
 
 def expire_changesets(ui, repo, options, repository):
     oldsets = Changeset.objects.filter(repository = repository)[options.max_changesets:]
@@ -224,6 +229,8 @@ def expire_changesets(ui, repo, options, repository):
 def pretxnchangegroup(ui, repo, node, **kwargs):
     options = Options(ui, repo, kwargs["url"])
 
+    tip = repo.changectx("tip")
+
     try:
         repository = Repository.objects.get(localpath = repo.root)
         if repository.url is None and options.url is not None:
@@ -232,7 +239,6 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
 
         # Existing repository, only add new changesets
         # All changesets from node to "tip" inclusive are part of this push.
-        tip = repo.changectx("tip")
         rev = max(tip.rev() - options.max_changesets, repo.changectx(node).rev())
         add_changesets(ui, repo, options, repository, xrange(rev, tip.rev() + 1))
 
@@ -240,6 +246,10 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
 
     except Repository.DoesNotExist:
         add_repository(ui, repo, options)
+
+        # Attempt to add the maximum number of changesets
+        rev = tip.rev() - options.max_changesets
+        add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
 
     return False
 
@@ -249,6 +259,18 @@ def init(ui, repo, options):
         raise Exception("Repository already exists in the database")
     except Repository.DoesNotExist:
         add_repository(ui, repo, options)
+
+def relocate(ui, repo, options):
+    try:
+        repository = Repository.objects.get(name = options.name)
+        if repository.localpath == repo.root:
+            ui.status("repository is already where the database expects, nothing to do here\n")
+            return
+        repository.localpath = repo.root
+        repository.save()
+        fixrevs(ui, repo, options)
+    except Repository.DoesNotExist:
+        raise("Could not find a repository called %s in the database" % options.name)
 
 @transaction.commit_on_success()
 def fixrevs(ui, repo, options):
@@ -342,8 +364,14 @@ def cmdline():
         options = Options(ui, repo)
 
         parser = argparse.ArgumentParser(description='Bootstrap hgchangefeed database for a mercurial repository.')
-        parser.add_argument("command", metavar = "cmd", type = str, choices = ["init", "update", "fixrevs", "reset", "delete"],
-                            help = "Command to run (init|update|reset|delete)")
+        parser.add_argument("command", metavar = "command", type = str, choices = ["init", "update", "relocate", "fixrevs", "reset", "delete"],
+                            help = "Command to run (init|update|relocate|fixrevs|reset|delete)")
+        parser.add_argument("--name", dest = "name", type = str,
+                            default = argparse.SUPPRESS,
+                            help = "A name for the repository. Only used in init to set the name and relocate to find the existing repository.")
+        parser.add_argument("--url", dest = "url", type = str,
+                            default = argparse.SUPPRESS,
+                            help = "The remote URL for the repository. Only used in init.")
         parser.add_argument("--changesets", dest = "onlychangesets", action = 'store_const',
                             const = True, default = False,
                             help = "Only delete/reset changesets")
@@ -357,6 +385,8 @@ def cmdline():
 
         if options.command == "init":
             init(ui, repo, options)
+        elif options.command == "relocate":
+            relocate(ui, repo, options)
         elif options.command == "fixrevs":
             fixrevs(ui, repo, options)
         elif options.command == "update":

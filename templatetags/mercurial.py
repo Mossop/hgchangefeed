@@ -16,6 +16,11 @@ register = template.Library()
 def summarise(value):
     return value.split("\n")[0]
 
+@register.filter
+@stringfilter
+def name(value):
+    return value.split(" <")[0]
+
 @register.filter(needs_autoescape = True)
 @stringfilter
 def bugzilla(value, autoescape = None):

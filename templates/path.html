@@ -41,7 +41,7 @@ Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ re
       {{ changeset }}<br>
       {% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
     </td>
-    <td class="summary"><span class="author">{{ changeset.author.name }}</span> - {{ changeset.description|summarise|bugzilla }}</td>
+    <td class="summary"><span class="author">{{ changeset.author|name }}</span> - {{ changeset.description|summarise|bugzilla }}</td>
     <td>
       {% for change in changeset.changetypes %}
         <img src="{{ STATIC_URL }}images/change{{ change }}.png">

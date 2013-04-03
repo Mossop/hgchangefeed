@@ -63,22 +63,17 @@ class Path(ManagedPrimaryKey):
     class Meta:
         ordering = ["path"]
 
-class Author(models.Model):
-    author = models.CharField(max_length = 255, unique = True)
-
-    @property
-    def name(self):
-        return self.author.split(" <")[0]
-
-    def __unicode__(self):
-        return self.name
+class Ancestor(models.Model):
+    path = models.ForeignKey(Path, related_name = "ancestors")
+    ancestor = models.ForeignKey(Path, related_name = "+")
+    depth = models.IntegerField()
 
 class Changeset(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     repository = models.ForeignKey(Repository, related_name = "changesets")
     rev = models.IntegerField()
     hex = models.CharField(max_length = 40)
-    author = models.ForeignKey(Author, related_name = "changesets")
+    author = models.TextField()
     date = models.DateTimeField()
     tz = models.IntegerField()
     description = models.TextField()
@@ -129,11 +124,3 @@ class Change(ManagedPrimaryKey):
 
     class Meta:
         unique_together = ("changeset", "path")
-
-class DescendantChange(models.Model):
-    change = models.ForeignKey(Change, related_name = "pathlist")
-    path = models.ForeignKey(Path, related_name = "descendant_changes")
-    depth = models.IntegerField()
-
-    class Meta:
-        unique_together = ("change", "path")
