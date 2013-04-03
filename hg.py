@@ -214,6 +214,7 @@ def add_repository(ui, repo, options):
 
     tip = repo.changectx("tip")
     add_paths(ui, repository, [f for f in tip])
+    return repository
 
 def expire_changesets(ui, repo, options, repository):
     oldsets = Changeset.objects.filter(repository = repository)[options.max_changesets:]
@@ -245,7 +246,7 @@ def pretxnchangegroup(ui, repo, node, **kwargs):
         expire_changesets(ui, repo, options, repository)
 
     except Repository.DoesNotExist:
-        add_repository(ui, repo, options)
+        repository = add_repository(ui, repo, options)
 
         # Attempt to add the maximum number of changesets
         rev = tip.rev() - options.max_changesets
