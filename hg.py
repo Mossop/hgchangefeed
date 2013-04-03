@@ -164,8 +164,6 @@ def add_changesets(ui, repo, options, repository, revisions):
 
             added = False
             for file in changectx.files():
-                path = get_path(repository, file)
-
                 type = "M"
 
                 if not file in changectx:
@@ -177,7 +175,7 @@ def add_changesets(ui, repo, options, repository, revisions):
                     filectx = changectx[file]
                     if not any([file in c for c in parents]):
                         type = "A"
-                    elif all([filectx.cmp(c[file]) for c in parents]):
+                    elif all([filectx.cmp(c[file]) for c in parents if file in c]):
                         type = "M"
                     else:
                         continue
@@ -187,6 +185,7 @@ def add_changesets(ui, repo, options, repository, revisions):
                     changeset_count = changeset_count + 1
                     added = True
 
+                path = get_path(repository, file)
                 change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
                 changes.append(change)
                 change_count = change_count + 1
@@ -198,6 +197,8 @@ def add_changesets(ui, repo, options, repository, revisions):
 
         bulk_insert(changesets, changes)
     except:
+        import traceback
+        traceback.print_exc()
         transaction.rollback()
         raise
     else:
