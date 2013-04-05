@@ -5,9 +5,9 @@ affected directories in mecurial repositories.
 
 # Requirements #
 
-Mercurial, maybe 2.5
-Django 1.5
-Python 2.7
+* Mercurial, maybe 2.5
+* Django 1.5
+* Python 2.7
 
 # Setup #
 
