@@ -44,7 +44,13 @@ Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ re
     <td class="summary"><span class="author">{{ changeset.author|name }}</span> - {{ changeset.description|summarise|bugzilla }}</td>
     <td>
       {% for change in changeset.changetypes %}
-        <img src="{{ STATIC_URL }}images/change{{ change }}.png">
+        {% if change == "A" %}
+        <img title="Change added files" src="{{ STATIC_URL }}images/plus-circle-frame.png">
+        {% elif change == "M" %}
+        <img title="Change modified files" src="{{ STATIC_URL }}images/pencil.png">
+        {% else %}
+        <img title="Change removed files" src="{{ STATIC_URL }}images/minus-circle-frame.png">
+        {% endif %}
       {% endfor %}
     </td>
   </tr>

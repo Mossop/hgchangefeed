@@ -29,7 +29,13 @@
 
 <ul class="filechanges">
 {% for change in changes %}
-  <li class="{{ change.get_type_display }}">{{ change.path }}</li>
+  {% if change.type == "A" %}
+  <li title="Change added {{ change.path }}" class="{{ change.get_type_display }}">{{ change.path }}</li>
+  {% elif change.type == "M" %}
+  <li title="Change modified {{ change.path }}" class="{{ change.get_type_display }}">{{ change.path }}</li>
+  {% else %}
+  <li title="Change removed {{ change.path }}" class="{{ change.get_type_display }}">{{ change.path }}</li>
+  {% endif %}
 {% endfor %}
 </ul>
 
