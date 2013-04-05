@@ -59,6 +59,9 @@ as a hook in the repository's hgrc:
     [hooks]
     pretxnchangegroup = python:../path/to/website/hg.py:pretxnchangegroup
 
+Make sure that the hg you use to pull changes is the one in the virtualenv along
+with django.
+
 The hook (and other parts of the script) attempt to use transactions sanely to
 commit complete changesets, but if anything fails the database may not have all
 of the recent changesets in it. Running `hg.py update` should fix that (correctly
