@@ -68,6 +68,9 @@ class Ancestor(models.Model):
     ancestor = models.ForeignKey(Path, related_name = "+")
     depth = models.IntegerField()
 
+    class Meta:
+        unique_together = ("path", "ancestor")
+
 class Changeset(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     repository = models.ForeignKey(Repository, related_name = "changesets")
