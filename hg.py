@@ -25,6 +25,7 @@ from mercurial import error
 import mercurial.ui
 
 from django.db import transaction
+from django.db.models import Max
 from django.utils.tzinfo import FixedOffset
 
 from website.models import *
@@ -299,6 +300,16 @@ def fixrevs(ui, repo, options):
 def update(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
+        last = Changeset.objects.filter(repository = repository).aggregate(Max("rev"))["rev__max"]
+        tip = repo.changectx("tip")
+        add_changesets(ui, repo, options, repository, xrange(last + 1, tip.rev() + 1))
+        expire_changesets(ui, repo, options, repository)
+    except Repository.DoesNotExist:
+        raise Exception("Repository doesn't exist in the database")
+
+def pull(ui, repo, options):
+    try:
+        repository = Repository.objects.get(localpath = repo.root)
         tip = repo.changectx("tip")
         rev = tip.rev() - options.max_changesets
         add_changesets(ui, repo, options, repository, xrange(tip.rev(), rev, -1))
@@ -366,8 +377,8 @@ def cmdline():
         options = Options(ui, repo)
 
         parser = argparse.ArgumentParser(description='Bootstrap hgchangefeed database for a mercurial repository.')
-        parser.add_argument("command", metavar = "command", type = str, choices = ["init", "update", "relocate", "fixrevs", "reset", "delete"],
-                            help = "Command to run (init|update|relocate|fixrevs|reset|delete)")
+        parser.add_argument("command", metavar = "command", type = str, choices = ["init", "update", "pull", "relocate", "fixrevs", "reset", "delete"],
+                            help = "Command to run (init|update|pull|relocate|fixrevs|reset|delete)")
         parser.add_argument("--name", dest = "name", type = str,
                             default = argparse.SUPPRESS,
                             help = "A name for the repository. Only used in init to set the name and relocate to find the existing repository.")
@@ -393,6 +404,8 @@ def cmdline():
             fixrevs(ui, repo, options)
         elif options.command == "update":
             update(ui, repo, options)
+        elif options.command == "pull":
+            pull(ui, repo, options)
         elif options.command == "reset":
             reset(ui, repo, options)
         elif options.command == "delete":
