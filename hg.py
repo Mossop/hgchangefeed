@@ -136,65 +136,69 @@ def add_changesets(ui, repo, options, repository, revisions):
         pos = 0
         for i in revisions:
             changectx = repo.changectx(i)
-            ui.progress("indexing changesets", pos, changectx.hex(), total = len(revisions))
-            pos = pos + 1
-
-            tz = FixedOffset(-changectx.date()[1] / 60)
-            date = datetime.fromtimestamp(changectx.date()[0], tz)
-
             try:
-                changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
-                if options.replace_stale:
-                    ui.warn("deleting stale information for changeset %s\n" % changeset)
-                    changeset.delete()
-                else:
-                    continue
+                ui.progress("indexing changesets", pos, changectx.hex(), total = len(revisions))
+                pos = pos + 1
+
+                tz = FixedOffset(-changectx.date()[1] / 60)
+                date = datetime.fromtimestamp(changectx.date()[0], tz)
+
+                try:
+                    changeset = Changeset.objects.get(repository = repository, hex = changectx.hex())
+                    if options.replace_stale:
+                        ui.warn("deleting stale information for changeset %s\n" % changeset)
+                        changeset.delete()
+                    else:
+                        continue
+                except:
+                    pass
+
+                changeset = Changeset(Changeset.next_id(),
+                                      repository = repository,
+                                      rev = changectx.rev(),
+                                      hex = changectx.hex(),
+                                      author = unicode(changectx.user(), encoding),
+                                      date = date,
+                                      tz = -changectx.date()[1] / 60,
+                                      description = unicode(changectx.description(), encoding))
+
+                parents = changectx.parents()
+
+                added = False
+                for file in changectx.files():
+                    type = "M"
+
+                    if not file in changectx:
+                        if all([file in c for c in parents]):
+                            type = "R"
+                        else:
+                            continue
+                    else:
+                        filectx = changectx[file]
+                        if not any([file in c for c in parents]):
+                            type = "A"
+                        elif all([filectx.cmp(c[file]) for c in parents if file in c]):
+                            type = "M"
+                        else:
+                            continue
+
+                    if not added:
+                        changesets.append(changeset)
+                        changeset_count = changeset_count + 1
+                        added = True
+
+                    path = get_path(repository, file)
+                    change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
+                    changes.append(change)
+                    change_count = change_count + 1
+
+                if (len(changesets) + len(changes)) >= BATCH_SIZE:
+                    bulk_insert(changesets, changes)
+                    changesets = []
+                    changes = []
             except:
-                pass
-
-            changeset = Changeset(Changeset.next_id(),
-                                  repository = repository,
-                                  rev = changectx.rev(),
-                                  hex = changectx.hex(),
-                                  author = unicode(changectx.user(), encoding),
-                                  date = date,
-                                  tz = -changectx.date()[1] / 60,
-                                  description = unicode(changectx.description(), encoding))
-
-            parents = changectx.parents()
-
-            added = False
-            for file in changectx.files():
-                type = "M"
-
-                if not file in changectx:
-                    if all([file in c for c in parents]):
-                        type = "R"
-                    else:
-                        continue
-                else:
-                    filectx = changectx[file]
-                    if not any([file in c for c in parents]):
-                        type = "A"
-                    elif all([filectx.cmp(c[file]) for c in parents if file in c]):
-                        type = "M"
-                    else:
-                        continue
-
-                if not added:
-                    changesets.append(changeset)
-                    changeset_count = changeset_count + 1
-                    added = True
-
-                path = get_path(repository, file)
-                change = Change(id = Change.next_id(), changeset = changeset, path = path, type = type)
-                changes.append(change)
-                change_count = change_count + 1
-
-            if (len(changesets) + len(changes)) >= BATCH_SIZE:
-                bulk_insert(changesets, changes)
-                changesets = []
-                changes = []
+                ui.warn("failed indexing changeset %s\n" % changectx.hex())
+                raise
 
         bulk_insert(changesets, changes)
     except:
