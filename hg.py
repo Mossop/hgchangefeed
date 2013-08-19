@@ -306,6 +306,8 @@ def update(ui, repo, options):
         repository = Repository.objects.get(localpath = repo.root)
         last = Changeset.objects.filter(repository = repository).aggregate(Max("rev"))["rev__max"]
         tip = repo.changectx("tip")
+        if not last:
+            last = tip.rev() - options.max_changesets
         add_changesets(ui, repo, options, repository, xrange(last + 1, tip.rev() + 1))
         expire_changesets(ui, repo, options, repository)
     except Repository.DoesNotExist:
