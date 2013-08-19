@@ -18,12 +18,12 @@ def path_cmp(a, b):
     return -1 if a.is_dir else 1
 
 def index(request):
-    repositories = Repository.objects.order_by('name')
+    repositories = Repository.objects.filter(hidden = False).order_by('name')
     context = { "repositories": repositories }
     return render(request, "index.html", context)
 
 def path(request, repository_name, path_name):
-    repository = get_object_or_404(Repository, name = repository_name)
+    repository = get_object_or_404(Repository, name = repository_name, hidden = False)
     path = get_object_or_404(Path, repository = repository, path = path_name)
 
     queryparams = {
@@ -50,7 +50,7 @@ def path(request, repository_name, path_name):
     return render(request, "path.html", context)
 
 def changeset(request, repository_name, changeset_id):
-    repository = get_object_or_404(Repository, name = repository_name)
+    repository = get_object_or_404(Repository, name = repository_name, hidden = False)
     changeset = get_object_or_404(Changeset, repository = repository, hex__startswith = changeset_id)
     context = {
       "repository": repository,

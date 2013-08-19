@@ -23,7 +23,7 @@ class PathFeed(Feed):
     description_template = 'pathfeed.html'
 
     def get_object(self, request, repository_name, path_name):
-        repository = get_object_or_404(Repository, name = repository_name)
+        repository = get_object_or_404(Repository, name = repository_name, hidden = False)
         path = get_object_or_404(Path, repository = repository, path = path_name)
         types = None
         if "types" in request.GET:

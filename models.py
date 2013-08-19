@@ -29,6 +29,7 @@ class Repository(models.Model):
     localpath = models.CharField(max_length = 255, unique = True)
     url = models.TextField(null = True)
     name = models.CharField(max_length = 50, unique = True)
+    hidden = models.BooleanField(default = True)
 
     @property
     def root(self):
