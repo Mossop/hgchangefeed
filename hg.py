@@ -334,7 +334,7 @@ def reset(ui, repo, options):
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
-@transaction.commit_on_success()
+@transaction.commit_manually()
 def delete(ui, repo, options):
     try:
         repository = Repository.objects.get(localpath = repo.root)
@@ -347,6 +347,7 @@ def delete(ui, repo, options):
             c.delete()
             count = count + 1
         ui.progress("deleting changesets", None)
+        transaction.commit()
         ui.status("deleted changesets\n")
 
         if options.onlychangesets:
@@ -361,11 +362,13 @@ def delete(ui, repo, options):
                 ui.progress("deleting paths", count, p, total = path_count)
                 p.delete()
                 count = count + 1
+            transaction.commit()
             remains = Path.objects.filter(repository = repository).count()
         ui.progress("deleting paths", None)
         ui.status("deleted paths\n")
 
         repository.delete()
+        transaction.commit()
         ui.status("deleted repository\n")
 
     except Repository.DoesNotExist:
