@@ -60,10 +60,14 @@ class Patch(object):
 
             # Read the description
             description = []
-            while not line.startswith("diff --git "):
-                description.append(line)
-                line = i.next()
-            self.description = "\n".join(description[0:-1])
+            try:
+                while not line.startswith("diff --git "):
+                    description.append(line)
+                    line = i.next()
+            except StopIteration:
+                return
+            finally:
+                self.description = "\n".join(description[0:-1])
 
             # Loop over the file changes
             while True:
