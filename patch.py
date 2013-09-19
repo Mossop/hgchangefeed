@@ -93,6 +93,8 @@ class Patch(object):
                     self.mark_removed(oldfile)
                 elif line.startswith("new file "):
                     self.mark_added(newfile)
+                elif line.startswith("old mode "):
+                    self.mark_modified(newfile)
                 elif line.startswith("Binary file ") and line.endswith(" has changed"):
                     filename = line[12:-12]
                     if filename != newfile:
