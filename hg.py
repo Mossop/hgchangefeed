@@ -6,9 +6,6 @@
 DEFAULT_RANGE = 604800
 BATCH_SIZE = 500
 
-from mercurial import demandimport;
-demandimport.disable()
-
 import os
 import sys
 
@@ -21,11 +18,6 @@ from datetime import datetime, timedelta
 import re
 import json
 from urllib import urlencode
-
-from mercurial.encoding import encoding
-from mercurial import hg
-from mercurial import error
-import mercurial.ui
 
 from django.db import transaction
 from django.db.models import Max
