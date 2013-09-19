@@ -62,7 +62,6 @@ class Path(ManagedPrimaryKey):
         return self.path
 
     class Meta:
-        unique_together = ("repository", "path")
         ordering = ["path"]
 
 class Ancestor(models.Model):
