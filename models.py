@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from django.db import models
-from django.utils.tzinfo import FixedOffset
+from pytz import FixedOffset
 
 CHANGE_TYPES = (
     ("A", "Added"),
@@ -26,9 +26,9 @@ class ManagedPrimaryKey(models.Model):
         abstract = True
 
 class Repository(models.Model):
-    localpath = models.CharField(max_length = 255, unique = True)
     url = models.TextField(null = True)
     name = models.CharField(max_length = 50, unique = True)
+    range = models.IntegerField()
     hidden = models.BooleanField(default = True)
 
     @property
@@ -62,6 +62,7 @@ class Path(ManagedPrimaryKey):
         return self.path
 
     class Meta:
+        unique_together = ("repository", "path")
         ordering = ["path"]
 
 class Ancestor(models.Model):
@@ -75,16 +76,18 @@ class Ancestor(models.Model):
 class Changeset(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     repository = models.ForeignKey(Repository, related_name = "changesets")
-    rev = models.IntegerField()
     hex = models.CharField(max_length = 40)
     author = models.TextField()
     date = models.DateTimeField()
-    tz = models.IntegerField()
+    tzoffset = models.IntegerField()
+    push_user = models.TextField()
+    push_date = models.DateTimeField()
+    push_id = models.IntegerField()
     description = models.TextField()
 
     @property
     def localdate(self):
-        tz = FixedOffset(self.tz)
+        tz = FixedOffset(self.tzoffset)
         return self.date.astimezone(tz)
 
     @property
@@ -113,9 +116,8 @@ class Changeset(ManagedPrimaryKey):
         return self.shorthex
 
     class Meta:
-        unique_together = (("repository", "rev"), ("repository", "hex"))
-        ordering = ["-rev"]
-        get_latest_by = "rev"
+        unique_together = ("repository", "hex")
+        ordering = ["-push_id", "-id"]
 
 class Change(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
