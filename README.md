@@ -44,5 +44,6 @@ any old ones.
 `delete` will delete the repository from the database.
 
 Generally you will use `init` to create the database and then `update` to pull
-the initial changesets in. After that a cron job running `update` will keep
-things updated.
+the initial changesets in. The repository will not be visible on the website
+until `update` has been run once. After that a cron job running `update` will
+keep things updated.

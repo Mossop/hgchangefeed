@@ -284,6 +284,9 @@ def update(ui, args):
         pushes = fetch_pushes(repository.url, start)
         add_pushes(ui, repository, pushes)
         expire_changesets(ui, repository)
+
+        repository.hidden = False
+        repository.save()
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
 
