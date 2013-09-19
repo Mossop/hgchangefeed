@@ -286,7 +286,12 @@ def update(ui, args):
         raise Exception("Repository doesn't exist in the database")
 
 def updateall(ui, args):
-    repositories = Repository.objects.filter(hidden = False)
+    types = dict()
+    if args.hidden:
+        types['hidden'] = True
+    elif args.visible:
+        types['hidden'] = False
+    repositories = Repository.objects.filter(**types)
     for repository in repositories:
         ui.status("updating %s\n" % repository.name)
         update_repository(ui, repository)
@@ -352,8 +357,15 @@ def cmdline():
     update_parser.add_argument("name", type = str,
                                help = "The name of the repository.")
 
-    updateall_parser = subparsers.add_parser('updateall', help='Updates all visible repositories.')
+    updateall_parser = subparsers.add_parser('updateall', help='Updates all repositories.')
     updateall_parser.set_defaults(func = updateall)
+    group = updateall_parser.add_mutually_exclusive_group()
+    group.add_argument("--hidden", dest = "hidden", action = 'store_const',
+                        const = True, default = False,
+                        help = "Only update hidden repositories.")
+    group.add_argument("--visible", dest = "visible", action = 'store_const',
+                        const = True, default = False,
+                        help = "Only update visible repositories.")
 
     delete_parser = subparsers.add_parser('delete', help='Delete an existing repository.')
     delete_parser.set_defaults(func = delete)

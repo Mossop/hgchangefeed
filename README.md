@@ -43,6 +43,8 @@ any old ones.
 
 `delete` will delete the repository from the database.
 
-`updateall` will run `update` for every visible repository, that is every
-repository that has had `update` run previously. This command is designed to
-be run regularly to keep all the repositories up to date.
+`updateall` will run `update` for every repository. This command is designed to
+be run regularly to keep all the repositories up to date. You can also pass
+--hidden to only update repositories that have never been updated before or
+--visible to only update repositories that have been updated before. The latter
+is recommended for cron jobs
