@@ -350,9 +350,6 @@ def cmdline():
     update_parser.set_defaults(func = update)
     update_parser.add_argument("name", type = str,
                                help = "The name of the repository.")
-    update_parser.add_argument("--replacestale", dest = "replace_stale", action = 'store_const',
-                               const = True,
-                               help = "Replace any stale changesets when updating.")
 
     delete_parser = subparsers.add_parser('delete', help='Delete an existing repository.')
     delete_parser.set_defaults(func = delete)
