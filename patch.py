@@ -67,31 +67,45 @@ class Patch(object):
 
             # Loop over the file changes
             while True:
+                (oldfile, newfile) = line.split()[2:4]
+                oldfile = oldfile[2:]
+                newfile = newfile[2:]
+
                 line = i.next()
                 if line.startswith("rename from "):
-                    # A rename is a delete and addition
-                    self.mark_removed(line[12:])
-                    line = i.next()
-                    if not line.startswith("rename to "):
+                    if line != ("rename from " + oldfile):
                         raise Exception("Malformed patch file at '%s'" % line)
-                    self.mark_added(line[10:])
-                    try:
-                        line = i.next()
-                    except StopIteration:
-                        return
+                    # A rename is a delete and addition
+                    self.mark_removed(oldfile)
+                    line = i.next()
+                    if line != ("rename to " + newfile):
+                        raise Exception("Malformed patch file at '%s'" % line)
+                    self.mark_added(newfile)
                 elif line.startswith("copy from "):
+                    if line != ("copy from " + oldfile):
+                        raise Exception("Malformed patch file at '%s'" % line)
                     # A copy is an addition
                     line = i.next()
-                    if not line.startswith("copy to "):
+                    if line != ("copy to " + newfile):
                         raise Exception("Malformed patch file at '%s'" % line)
-                    self.mark_added(line[8:])
-                    try:
-                        line = i.next()
-                    except StopIteration:
-                        return
+                    self.mark_added(newfile)
+                elif line.startswith("deleted file "):
+                    self.mark_removed(oldfile)
+                elif line.startswith("new file "):
+                    self.mark_added(newfile)
+                elif line.startswith("Binary file ") and line.endswith(" has changed"):
+                    filename = line[12:-12]
+                    if filename != newfile:
+                        raise Exception("Malformed patch file at '%s'" % line)
+                    self.mark_modified(newfile)
+                elif line.startswith("index "):
+                    line = i.next()
+                    if line != "GIT binary patch":
+                        raise Exception("Malformed patch file at '%s'" % line)
+                    self.mark_modified(newfile)
                 else:
-                    while not line.startswith("--- "):
-                        line = i.next()
+                    if not line.startswith("--- "):
+                        raise Exception("Malformed patch file at '%s'" % line)
                     oldfile = line[4:]
                     line = i.next()
                     if not line.startswith("+++ "):
@@ -107,7 +121,7 @@ class Patch(object):
                     else:
                         self.mark_modified(newfile[2:])
 
-                    line = i.next()
+                line = i.next()
 
                 while not line.startswith("diff --git "):
                     try:
