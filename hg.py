@@ -377,7 +377,14 @@ def cmdline():
 
     args = parser.parse_args()
 
-    args.func(ui, args)
+    try:
+        args.func(ui, args)
+    except:
+        import traceback
+        (type, value, tb) = sys.exc_info()
+        ui.warn("%s: %s\n" % (type.__name__, value))
+        ui.warn("".join(traceback.format_tb(tb)))
+        sys.exit(1)
 
 if __name__ == "__main__":
     cmdline()

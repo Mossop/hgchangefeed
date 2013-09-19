@@ -12,7 +12,7 @@ class UI(object):
         try:
             pos = str.index("\n")
             line1 = str[0:pos]
-            rest = str[pos]
+            rest = str[pos:]
             self.output(stream, line1)
             stream.write(rest)
         except ValueError:
