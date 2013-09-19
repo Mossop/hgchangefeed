@@ -256,6 +256,18 @@ def expire_changesets(ui, repository):
         pos = pos + 1
     ui.progress("expiring changesets", None)
 
+def update_repository(ui, repository):
+    start = dict()
+    last_push = Changeset.objects.filter(repository = repository).aggregate(Max("push_id"))["push_id__max"]
+    if last_push:
+        start['id'] = last_push
+    else:
+        start['date'] = datetime.now(utc) - timedelta(seconds = repository.range)
+
+    pushes = fetch_pushes(repository.url, start)
+    add_pushes(ui, repository, pushes)
+    expire_changesets(ui, repository)
+
 @transaction.commit_on_success()
 def init(ui, args):
     try:
@@ -274,21 +286,18 @@ def update(ui, args):
     try:
         repository = Repository.objects.get(name = args.name)
 
-        start = dict()
-        last_push = Changeset.objects.filter(repository = repository).aggregate(Max("push_id"))["push_id__max"]
-        if last_push:
-            start['id'] = last_push
-        else:
-            start['date'] = datetime.now(utc) - timedelta(seconds = repository.range)
-
-        pushes = fetch_pushes(repository.url, start)
-        add_pushes(ui, repository, pushes)
-        expire_changesets(ui, repository)
+        update_repository(ui, repository)
 
         repository.hidden = False
         repository.save()
     except Repository.DoesNotExist:
         raise Exception("Repository doesn't exist in the database")
+
+def updateall(ui, args):
+    repositories = Repository.objects.filter(hidden = False)
+    for repository in repositories:
+        ui.status("updating %s\n" % repository.name)
+        update_repository(ui, repository)
 
 @transaction.commit_manually()
 def delete(ui, args):
@@ -350,6 +359,9 @@ def cmdline():
     update_parser.set_defaults(func = update)
     update_parser.add_argument("name", type = str,
                                help = "The name of the repository.")
+
+    updateall_parser = subparsers.add_parser('updateall', help='Updates all visible repositories.')
+    updateall_parser.set_defaults(func = updateall)
 
     delete_parser = subparsers.add_parser('delete', help='Delete an existing repository.')
     delete_parser.set_defaults(func = delete)

@@ -31,7 +31,7 @@ The `hg.py` script can be called from the command line to set up repositories to
 track.  Make sure that you run it in the virtualenv that has both mercurial and
 django installed.
 
-It has three commands.
+It has four commands.
 
 `init` is used to register a new repository to track. It will download the file
 structure of the repository which can take a while.
@@ -43,7 +43,6 @@ any old ones.
 
 `delete` will delete the repository from the database.
 
-Generally you will use `init` to create the database and then `update` to pull
-the initial changesets in. The repository will not be visible on the website
-until `update` has been run once. After that a cron job running `update` will
-keep things updated.
+`updateall` will run `update` for every visible repository, that is every
+repository that has had `update` run previously. This command is designed to
+be run regularly to keep all the repositories up to date.
