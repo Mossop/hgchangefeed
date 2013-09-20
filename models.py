@@ -3,7 +3,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from django.db import models
+from django.conf import settings
 from pytz import FixedOffset
+
+DATABASE_ENGINE = settings.DATABASES['default']['ENGINE']
 
 CHANGE_TYPES = (
     ("A", "Added"),
@@ -62,6 +65,9 @@ class Path(ManagedPrimaryKey):
         return self.path
 
     class Meta:
+        # MySQL can't handle indexes on TextFields, add them manually later
+        if DATABASE_ENGINE != 'django.db.backends.mysql':
+            unique_together = (("repository", "path"), ("repository", "parent", "name"))
         ordering = ["path"]
 
 class Ancestor(models.Model):
