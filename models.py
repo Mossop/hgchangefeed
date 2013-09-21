@@ -47,9 +47,9 @@ class Repository(models.Model):
 class Path(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
     name = models.TextField()
-    path = models.TextField()
+    path = models.TextField(unique = True)
     parent = models.ForeignKey("self", null = True, related_name = "children")
-    repository = models.ForeignKey(Repository)
+    repositories = models.ManyToManyField(Repository, related_name = "paths")
     is_dir = models.BooleanField()
 
     def parentlist(self):
@@ -67,7 +67,7 @@ class Path(ManagedPrimaryKey):
     class Meta:
         # MySQL can't handle indexes on TextFields, add them manually later
         if DATABASE_ENGINE != 'django.db.backends.mysql':
-            unique_together = (("repository", "path"), ("repository", "parent", "name"))
+            unique_together = ("parent", "name")
         ordering = ["path"]
 
 class Ancestor(models.Model):

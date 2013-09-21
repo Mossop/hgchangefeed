@@ -24,9 +24,10 @@ def index(request):
 
 def path(request, repository_name, path_name):
     repository = get_object_or_404(Repository, name = repository_name, hidden = False)
-    path = get_object_or_404(Path, repository = repository, path = path_name)
+    path = get_object_or_404(Path, repositories = repository, path = path_name)
 
     queryparams = {
+        "repository": repository,
         "changes__path__ancestors__ancestor": path,
     }
 
@@ -44,7 +45,7 @@ def path(request, repository_name, path_name):
       "repository": repository,
       "path": path,
       "changesets": changesets[:200],
-      "paths": sorted(path.children.all(), path_cmp),
+      "paths": sorted(path.children.filter(repositories = repository), path_cmp),
       "query": query,
     }
     return render(request, "path.html", context)

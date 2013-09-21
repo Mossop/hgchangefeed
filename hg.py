@@ -19,7 +19,7 @@ import re
 import json
 from urllib import urlencode
 
-from django.db import transaction
+from django.db import transaction, connection
 from django.db.models import Max
 from django.utils.tzinfo import FixedOffset
 
@@ -53,42 +53,28 @@ def fetch_pushes(url, start = None):
     pushes = [dict(results[str(id)], id = id, date = utc_datetime(results[str(id)]['date'])) for id in ids]
     return pushes
 
+@transaction.commit_manually()
 def add_paths(ui, repository):
-    def create_ancestors(ancestors, parentlist, path):
-        depth = len(parentlist)
-        for ancestor in parentlist:
-            ancestors.append(Ancestor(path = path, ancestor = ancestor, depth = depth))
-            depth = depth - 1
-        ancestors.append(Ancestor(path = path, ancestor = path, depth = depth))
-
-    paths = []
-    ancestors = []
+    root = Path.objects.get(path = '')
+    root.repositories.add(repository)
 
     pushes = fetch_pushes(repository.url)
     cset = pushes[-1]['changesets'][-1]
 
     queue = HttpQueue()
-    queue.fetch("%sfile/%s/?style=raw" % (repository.url, cset), ('', []))
+    queue.fetch("%sfile/%s/?style=raw" % (repository.url, cset), [root])
 
     totalpaths = 1
     complete = 0
     ui.progress("indexing paths", complete, totalpaths)
 
-    (response, context) = queue.next()
+    (response, parentlist) = queue.next()
     while response:
-        (path, parentlist) = context
-        name = path.split('/')[-1]
-        parent = None
-        if len(parentlist) > 0:
-            parent = parentlist[-1]
-
-        directory = Path(id = Path.next_id(), repository = repository,
-                         name = name, path = path, parent = parent, is_dir = True)
-        paths.append(directory)
-        create_ancestors(ancestors, parentlist, directory)
-
-        if path:
-            path = path + '/'
+        directory = parentlist[-1]
+        paths = Path.objects.filter(parent = directory)
+        contents = dict()
+        for path in paths:
+            contents[path.name] = path
 
         for line in response.split("\n"):
             line = line.strip()
@@ -98,42 +84,54 @@ def add_paths(ui, repository):
             if not matches:
                 raise Exception("Unable to parse directory entry '%s'" % line)
 
-            if matches.group(1) == 'd':
-                name = matches.group(2)
-                newlist = list(parentlist)
-                newlist.append(directory)
-                queue.fetch("%sfile/%s/%s/?style=raw" % (repository.url, cset, path + name), (path + name, newlist))
-                totalpaths = totalpaths + 1
-            else:
-                name = matches.group(3)
-                file = Path(id = Path.next_id(), repository = repository,
-                            name = name, path = path + name,
-                            parent = directory, is_dir = False)
-                paths.append(file)
-                create_ancestors(ancestors, parentlist, file)
+            is_dir = matches.group(1) == 'd'
+            name = matches.group(2) if is_dir else matches.group(3)
 
-        if len(paths) + len(ancestors) >= BATCH_SIZE:
-            Path.objects.bulk_create(paths)
-            Ancestor.objects.bulk_create(ancestors)
-            paths = []
-            ancestors = []
+            if name in contents:
+                path = contents[name]
+            else:
+                newpath = directory.path
+                if newpath:
+                    newpath = newpath + '/'
+                newpath = newpath + name
+
+                path = Path(id = Path.next_id(), path = newpath, name = name, parent = directory, is_dir = is_dir)
+                path.save()
+
+                depth = len(parentlist)
+                ancestors = []
+                for ancestor in parentlist:
+                    ancestors.append(Ancestor(path = path, ancestor = ancestor, depth = depth))
+                    depth = depth - 1
+                ancestors.append(Ancestor(path = path, ancestor = path, depth = 0))
+                Ancestor.objects.bulk_create(ancestors)
+
+            path.repositories.add(repository)
+
+            if is_dir:
+                newlist = list(parentlist)
+                newlist.append(path)
+                queue.fetch("%sfile/%s/%s/?style=raw" % (repository.url, cset, path.path), newlist)
+                totalpaths = totalpaths + 1
 
         complete = complete + 1
+        transaction.commit()
         ui.progress("indexing paths", complete, totalpaths)
-        (response, context) = queue.next()
+        (response, parentlist) = queue.next()
 
-    Path.objects.bulk_create(paths)
-    Ancestor.objects.bulk_create(ancestors)
     ui.progress("indexing paths")
 
 def get_path(repository, path, is_dir = False):
     try:
-        return Path.objects.get(repository = repository, path = path)
+        path = Path.objects.get(path = path)
+        path.repositories.add(repository)
+        return path
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
-        result = Path(id = Path.next_id(), repository = repository, path = path, name = parts[-1], parent = parent, is_dir = is_dir)
+        result = Path(id = Path.next_id(), path = path, name = parts[-1], parent = parent, is_dir = is_dir)
         result.save()
+        result.repositories.add(repository)
 
         ancestor = Ancestor(path = result, ancestor = result, depth = 0)
         ancestor.save()
@@ -260,11 +258,9 @@ def update_repository(ui, repository):
     add_pushes(ui, repository, pushes)
     expire_changesets(ui, repository)
 
-@transaction.commit_on_success()
 def init(ui, args):
     try:
         repository = Repository.objects.get(name = args.name)
-        raise Exception("Repository already exists in the database")
     except Repository.DoesNotExist:
         url = args.url
         if url[-1] != '/':
@@ -272,7 +268,7 @@ def init(ui, args):
         repository = Repository(url = url, name = args.name, range = args.range)
         repository.save()
 
-        add_paths(ui, repository)
+    add_paths(ui, repository)
 
 def update(ui, args):
     try:
@@ -302,36 +298,33 @@ def delete(ui, args):
         repository = Repository.objects.get(name = args.name)
 
         from django.conf import settings
-        count = 0
         changesets = Changeset.objects.filter(repository = repository)
         for c in changesets:
             ui.progress("deleting changesets", count, total = len(changesets))
             c.delete()
-            count = count + 1
         transaction.commit()
         ui.progress("deleting changesets")
 
         if args.onlychangesets:
             return
 
-        count = 0
-        path_count = Path.objects.filter(repository = repository).count()
-        remains = path_count
-        while remains > 0:
-            paths = Path.objects.filter(repository = repository).order_by("-path")[:BATCH_SIZE]
-            for p in paths:
-                ui.progress("deleting paths", count, total = path_count)
-                p.delete()
-                count = count + 1
-            transaction.commit()
-            remains = Path.objects.filter(repository = repository).count()
-        ui.progress("deleting paths")
+#        path_count = Path.objects.filter(repository = repository).count()
+#        remains = path_count
+#        while remains > 0:
+#            paths = Path.objects.filter(repository = repository).order_by("-path")[:BATCH_SIZE]
+#            for p in paths:
+#                ui.progress("deleting paths", count, total = path_count)
+#                p.delete()
+#            transaction.commit()
+#            remains = Path.objects.filter(repository = repository).count()
+#        ui.progress("deleting paths")
 
         repository.delete()
         transaction.commit()
         ui.status("deleted repository\n")
 
     except Repository.DoesNotExist:
+        transaction.commit()
         raise Exception("Repository doesn't exist in the database")
 
 def cmdline():

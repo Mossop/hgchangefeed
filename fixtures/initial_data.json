@@ -1,0 +1,21 @@
+[
+  {
+    "pk": 1,
+    "model": "website.path",
+    "fields": {
+      "path": "",
+      "is_dir": true,
+      "repositories": [],
+      "name": "",
+      "parent": null
+    }
+  }, {
+    "pk": 1,
+    "model": "website.ancestor",
+    "fields": {
+      "path": 1,
+      "depth": 1,
+      "ancestor": 1
+    }
+  }
+]

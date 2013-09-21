@@ -15,7 +15,8 @@ TYPEMAP = {
 }
 
 class PathFeedRequest(object):
-    def __init__(self, path, types):
+    def __init__(self, repository, path, types):
+        self.repository = repository
         self.path = path
         self.types = types
 
@@ -24,23 +25,24 @@ class PathFeed(Feed):
 
     def get_object(self, request, repository_name, path_name):
         repository = get_object_or_404(Repository, name = repository_name, hidden = False)
-        path = get_object_or_404(Path, repository = repository, path = path_name)
+        path = get_object_or_404(Path, repositories = repository, path = path_name)
         types = None
         if "types" in request.GET:
             types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
-        return PathFeedRequest(path, types)
+        return PathFeedRequest(repository, path, types)
 
     def title(self, req):
-        return "Changes in %s %s" % (req.path.repository, req.path)
+        return "Changes in %s %s" % (req.repository, req.path)
 
     def link(self, req):
-        return reverse('path', args=[req.path.repository, req.path])
+        return reverse('path', args=[req.repository, req.path])
 
     def description(self, req):
-        return "Changes recently made to %s in %s" % (req.path, req.path.repository)
+        return "Changes recently made to %s in %s" % (req.path, req.repository)
 
     def items(self, req):
         queryparams = {
+            "repository": req.repository,
             "changes__path__ancestors__ancestor": req.path,
         }
 
