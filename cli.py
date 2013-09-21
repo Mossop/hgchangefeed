@@ -24,6 +24,12 @@ class UI(object):
 
         self.output(sys.stdout, str)
 
+    def traceback(self):
+        import traceback
+        (type, value, tb) = sys.exc_info()
+        self.warn("%s: %s\n" % (type.__name__, value))
+        self.warn("".join(traceback.format_tb(tb)))
+
     def warn(self, str):
         self.output(sys.stderr, str)
 

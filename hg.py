@@ -166,76 +166,82 @@ def add_pushes(ui, repository, pushes):
     ui.progress("indexing changesets", complete, changeset_count)
 
     for pushdata in pushes:
-        push = Push(push_id = pushdata['id'], repository = repository, user = pushdata['user'], date = pushdata['date'])
-        push.save()
+        try:
+            push = Push(push_id = pushdata['id'], repository = repository, user = pushdata['user'], date = pushdata['date'])
+            push.save()
 
-        changes = []
-        for cset in pushdata['changesets']:
-            try:
-                (text, hex) = queue.next()
-                if hex != cset:
-                    raise Exception("Saw unexpected changeset %s, expecting %s" % (hex, cset))
-
-                patches = [Patch(text.split("\n"))]
-                for parent in patches[0].parents[1:]:
-                    url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
-                    patches.append(Patch(http_fetch(url).split("\n")))
-
-                allfiles = set()
-
-                for patch in patches:
-                    if patch.hex != cset:
-                        raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
-                    allfiles.update(patch.files.keys())
-
+            changes = []
+            for cset in pushdata['changesets']:
                 try:
-                    changeset = Changeset.objects.get(hex = patches[0].hex)
-                    changeset.pushes.add(push)
-                except Changeset.DoesNotExist:
-                    changeset = Changeset(hex = patches[0].hex,
-                                          author = patches[0].user,
-                                          date = patches[0].date,
-                                          tzoffset = patches[0].tzoffset,
-                                          description = patches[0].description)
+                    (text, hex) = queue.next()
+                    if hex != cset:
+                        raise Exception("Saw unexpected changeset %s, expecting %s" % (hex, cset))
 
-                    added = False
-                    for file in allfiles:
-                        changetype = ''
-                        for patch in patches:
-                            # No change against one parent means the change happened
-                            # in an earlier changeset
-                            if not file in patch.files:
-                                changetype = "X"
-                                break
+                    patches = [Patch(text.split("\n"))]
+                    for parent in patches[0].parents[1:]:
+                        url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
+                        patches.append(Patch(http_fetch(url).split("\n")))
 
-                            patchchange = patch.files[file]
-                            if not changetype:
-                                changetype = patchchange
-                            elif patchchange == "M":
-                                changetype = patchchange
+                    allfiles = set()
 
-                        if changetype == "X":
-                            continue
+                    for patch in patches:
+                        if patch.hex != cset:
+                            raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
+                        allfiles.update(patch.files.keys())
 
-                        if not added:
-                            added = True
-                            changeset.save()
-                            changeset.pushes.add(push)
+                    try:
+                        changeset = Changeset.objects.get(hex = patches[0].hex)
+                        changeset.pushes.add(push)
+                    except Changeset.DoesNotExist:
+                        changeset = Changeset(hex = patches[0].hex,
+                                              author = patches[0].user,
+                                              date = patches[0].date,
+                                              tzoffset = patches[0].tzoffset,
+                                              description = patches[0].description)
 
-                        path = get_path(repository, file)
-                        change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
-                        changes.append(change)
+                        added = False
+                        for file in allfiles:
+                            changetype = ''
+                            for patch in patches:
+                                # No change against one parent means the change happened
+                                # in an earlier changeset
+                                if not file in patch.files:
+                                    changetype = "X"
+                                    break
 
-                complete = complete + 1
-                ui.progress("indexing changesets", complete, changeset_count)
+                                patchchange = patch.files[file]
+                                if not changetype:
+                                    changetype = patchchange
+                                elif patchchange == "M":
+                                    changetype = patchchange
 
-            except:
-                transaction.rollback()
-                ui.warn("failed indexing changeset %s\n" % cset)
-                raise
+                            if changetype == "X":
+                                continue
 
-        Change.objects.bulk_create(changes)
-        transaction.commit()
+                            if not added:
+                                added = True
+                                changeset.save()
+                                changeset.pushes.add(push)
+
+                            path = get_path(repository, file)
+                            change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
+                            changes.append(change)
+
+                    complete = complete + 1
+                    ui.progress("indexing changesets", complete, changeset_count)
+
+                except:
+                    ui.warn("failed indexing changeset %s\n" % cset)
+                    ui.traceback()
+                    transaction.rollback()
+                    raise
+
+            Change.objects.bulk_create(changes)
+            transaction.commit()
+        except:
+            ui.traceback()
+            transaction.rollback()
+            return
 
     ui.progress("indexing changesets")
 
@@ -383,10 +389,7 @@ def cmdline():
     try:
         args.func(ui, args)
     except:
-        import traceback
-        (type, value, tb) = sys.exc_info()
-        ui.warn("%s: %s\n" % (type.__name__, value))
-        ui.warn("".join(traceback.format_tb(tb)))
+        ui.traceback()
         sys.exit(1)
 
 if __name__ == "__main__":
