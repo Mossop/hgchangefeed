@@ -78,16 +78,22 @@ class Ancestor(models.Model):
     class Meta:
         unique_together = ("path", "ancestor")
 
-class Changeset(ManagedPrimaryKey):
-    id = models.IntegerField(primary_key = True)
-    repository = models.ForeignKey(Repository, related_name = "changesets")
-    hex = models.CharField(max_length = 40)
+class Push(models.Model):
+    push_id = models.IntegerField()
+    repository = models.ForeignKey(Repository, related_name = "pushes")
+    user = models.TextField()
+    date = models.DateTimeField()
+
+    class Meta:
+        unique_together = ("repository", "id")
+        ordering = ["-push_id"]
+
+class Changeset(models.Model):
+    pushes = models.ManyToManyField(Push, related_name = "changesets")
+    hex = models.CharField(max_length = 40, unique = True)
     author = models.TextField()
     date = models.DateTimeField()
     tzoffset = models.IntegerField()
-    push_user = models.TextField()
-    push_date = models.DateTimeField()
-    push_id = models.IntegerField()
     description = models.TextField()
 
     @property
@@ -100,29 +106,17 @@ class Changeset(ManagedPrimaryKey):
         return self.hex[0:12]
 
     @property
-    def url(self):
-        return "%srev/%s" % (self.repository.url, self.shorthex)
-
-    @property
-    def pushlog(self):
-        return "%spushloghtml?changeset=%s" % (self.repository.url, self.shorthex)
-
-    @property
     def changetypes(self):
         changes = set()
         for change in self.changes.all():
             changes.add(change.type)
         return changes
 
-    def get_absolute_url(self):
-        return self.url
-
     def __unicode__(self):
         return self.shorthex
 
     class Meta:
-        unique_together = ("repository", "hex")
-        ordering = ["-push_id", "-id"]
+        ordering = ["-id"]
 
 class Change(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)

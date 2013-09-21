@@ -20,6 +20,11 @@ class PathFeedRequest(object):
         self.path = path
         self.types = types
 
+class ChangesetItem(object):
+    def __init__(self, repository, changeset):
+        self.repository = repository
+        self.changeset = changeset
+
 class PathFeed(Feed):
     description_template = 'pathfeed.html'
 
@@ -42,20 +47,24 @@ class PathFeed(Feed):
 
     def items(self, req):
         queryparams = {
-            "repository": req.repository,
+            "pushes__repository": req.repository,
             "changes__path__ancestors__ancestor": req.path,
         }
 
         if req.types is not None:
             queryparams["changes__type__in"] = req.types
 
-        return Changeset.objects.filter(**queryparams).distinct()[:20]
+        changesets = Changeset.objects.filter(**queryparams).distinct()[:20]
+        return [ChangesetItem(req.repository, c) for c in changesets]
 
-    def item_title(self, changeset):
-        return "Changeset %s" % changeset
+    def item_title(self, item):
+        return "Changeset %s" % item.changeset
 
-    def item_author_name(self, changeset):
-        return changeset.author.split(" <")[0]
+    def item_author_name(self, item):
+        return item.changeset.author.split(" <")[0]
 
-    def item_pubdate(self, changeset):
-        return changeset.localdate
+    def item_pubdate(self, item):
+        return item.changeset.localdate
+
+    def item_link(self, item):
+        return "%srev/%s" % (item.repository.url, item.changeset)

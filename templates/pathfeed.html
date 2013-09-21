@@ -6,8 +6,8 @@
    - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
 {% endcomment %}
 
-<p>{{ obj.description|bugzilla|linebreaks }}<p>
+<p>{{ obj.changeset.description|bugzilla|linebreaks }}<p>
 
-<pre>{% for change in obj.changes.all %}{{change}}
+<pre>{% for change in obj.changeset.changes.all %}{{change}}
 {% endfor %}</pre>
 

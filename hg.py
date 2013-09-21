@@ -4,7 +4,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DEFAULT_RANGE = 604800
-BATCH_SIZE = 500
 
 import os
 import sys
@@ -22,6 +21,7 @@ from urllib import urlencode
 from django.db import transaction, connection
 from django.db.models import Max
 from django.utils.tzinfo import FixedOffset
+from django.conf import settings
 
 from pytz import timezone, utc
 
@@ -29,6 +29,8 @@ from website.models import *
 from website.http import OrderedHttpQueue, HttpQueue, http_fetch
 from website.cli import UI
 from website.patch import Patch
+
+DATABASE_ENGINE = settings.DATABASES['default']['ENGINE']
 
 def utc_datetime(timestamp):
     return datetime.fromtimestamp(timestamp, utc)
@@ -163,10 +165,12 @@ def add_pushes(ui, repository, pushes):
     complete = 0
     ui.progress("indexing changesets", complete, changeset_count)
 
-    for push in pushes:
-        changesets = []
+    for pushdata in pushes:
+        push = Push(push_id = pushdata['id'], repository = repository, user = pushdata['user'], date = pushdata['date'])
+        push.save()
+
         changes = []
-        for cset in push['changesets']:
+        for cset in pushdata['changesets']:
             try:
                 (text, hex) = queue.next()
                 if hex != cset:
@@ -184,43 +188,43 @@ def add_pushes(ui, repository, pushes):
                         raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
                     allfiles.update(patch.files.keys())
 
-                changeset = Changeset(Changeset.next_id(),
-                                      repository = repository,
-                                      hex = patches[0].hex,
-                                      author = patches[0].user,
-                                      date = patches[0].date,
-                                      tzoffset = patches[0].tzoffset,
-                                      push_user = push['user'],
-                                      push_date = push['date'],
-                                      push_id = push['id'],
-                                      description = patches[0].description)
+                try:
+                    changeset = Changeset.objects.get(hex = patches[0].hex)
+                    changeset.pushes.add(push)
+                except Changeset.DoesNotExist:
+                    changeset = Changeset(hex = patches[0].hex,
+                                          author = patches[0].user,
+                                          date = patches[0].date,
+                                          tzoffset = patches[0].tzoffset,
+                                          description = patches[0].description)
 
-                added = False
-                for file in allfiles:
-                    changetype = ''
-                    for patch in patches:
-                        # No change against one parent means the change happened
-                        # in an earlier changeset
-                        if not file in patch.files:
-                            changetype = "X"
-                            break
+                    added = False
+                    for file in allfiles:
+                        changetype = ''
+                        for patch in patches:
+                            # No change against one parent means the change happened
+                            # in an earlier changeset
+                            if not file in patch.files:
+                                changetype = "X"
+                                break
 
-                        patchchange = patch.files[file]
-                        if not changetype:
-                            changetype = patchchange
-                        elif patchchange == "M":
-                            changetype = patchchange
+                            patchchange = patch.files[file]
+                            if not changetype:
+                                changetype = patchchange
+                            elif patchchange == "M":
+                                changetype = patchchange
 
-                    if changetype == "X":
-                        continue
+                        if changetype == "X":
+                            continue
 
-                    if not added:
-                        added = True
-                        changesets.append(changeset)
+                        if not added:
+                            added = True
+                            changeset.save()
+                            changeset.pushes.add(push)
 
-                    path = get_path(repository, file)
-                    change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
-                    changes.append(change)
+                        path = get_path(repository, file)
+                        change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
+                        changes.append(change)
 
                 complete = complete + 1
                 ui.progress("indexing changesets", complete, changeset_count)
@@ -230,7 +234,6 @@ def add_pushes(ui, repository, pushes):
                 ui.warn("failed indexing changeset %s\n" % cset)
                 raise
 
-        Changeset.objects.bulk_create(changesets)
         Change.objects.bulk_create(changes)
         transaction.commit()
 
@@ -238,17 +241,18 @@ def add_pushes(ui, repository, pushes):
 
 def expire_changesets(ui, repository):
     oldest = datetime.now(utc) - timedelta(seconds = repository.range)
-    oldsets = Changeset.objects.filter(repository = repository, push_date__lt = oldest)
-    pos = 0
-    for changeset in oldsets:
-        ui.progress("expiring changesets", pos, total = len(oldsets))
-        changeset.delete()
-        pos = pos + 1
-    ui.progress("expiring changesets", None)
+
+    pushes = Push.objects.filter(repository = repository, date__lt = oldest)
+    ui.status("deleting %d pushes\n" % len(pushes))
+    pushes.delete()
+
+    changesets = Changeset.objects.filter(pushes__isnull = True)
+    ui.status("deleting %d changesets\n" % len(changesets))
+    changesets.delete()
 
 def update_repository(ui, repository):
     start = dict()
-    last_push = Changeset.objects.filter(repository = repository).aggregate(Max("push_id"))["push_id__max"]
+    last_push = Push.objects.filter(repository = repository).aggregate(Max("push_id"))["push_id__max"]
     if last_push:
         start['id'] = last_push
     else:
@@ -292,39 +296,45 @@ def updateall(ui, args):
         ui.status("updating %s\n" % repository.name)
         update_repository(ui, repository)
 
-@transaction.commit_manually()
+@transaction.commit_on_success()
 def delete(ui, args):
     try:
         repository = Repository.objects.get(name = args.name)
 
-        from django.conf import settings
-        changesets = Changeset.objects.filter(repository = repository)
-        for c in changesets:
-            ui.progress("deleting changesets", count, total = len(changesets))
-            c.delete()
-        transaction.commit()
-        ui.progress("deleting changesets")
+        pushes = Push.objects.filter(repository = repository)
+        ui.status("deleting %d pushes\n" % len(pushes))
+        pushes.delete()
+
+        changesets = Changeset.objects.filter(pushes__isnull = True)
+        ui.status("deleting %d changesets\n" % len(changesets))
+        changesets.delete()
 
         if args.onlychangesets:
             return
 
-#        path_count = Path.objects.filter(repository = repository).count()
-#        remains = path_count
-#        while remains > 0:
-#            paths = Path.objects.filter(repository = repository).order_by("-path")[:BATCH_SIZE]
-#            for p in paths:
-#                ui.progress("deleting paths", count, total = path_count)
-#                p.delete()
-#            transaction.commit()
-#            remains = Path.objects.filter(repository = repository).count()
-#        ui.progress("deleting paths")
-
         repository.delete()
-        transaction.commit()
-        ui.status("deleted repository\n")
+        ui.status("repository deleted\n")
+
+        if DATABASE_ENGINE == 'django.db.backends.sqlite3':
+            # A bug in django makes it impossible to delete a large set of objects
+            # that are referenced by foreign keys, delete them one at a time for
+            # safety. See https://code.djangoproject.com/ticket/16426
+            path_count = Path.objects.filter(repositories__isnull = True).count()
+            remains = path_count
+            count = 0
+            while (remains - count) > 0:
+                paths = Path.objects.filter(repositories__isnull = True).order_by("-path")[:500]
+                ui.progress("deleting paths", count, total = path_count)
+                for path in paths:
+                    path.delete()
+                count = count + len(paths)
+            ui.progress("deleting paths")
+        else:
+            paths = Path.objects.filter(repositories__isnull = True)
+            ui.status("deleting %d paths\n" % len(paths))
+            paths.delete()
 
     except Repository.DoesNotExist:
-        transaction.commit()
         raise Exception("Repository doesn't exist in the database")
 
 def cmdline():
