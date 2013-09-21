@@ -122,31 +122,38 @@ def add_paths(ui, repository):
         ui.progress("indexing paths")
 
 def get_path(repository, path, is_dir = False):
-    try:
-        path = Path.get_by_path(path = path)
-        paths = path.parentlist()
-        paths.append(path)
-        repository.paths.add(*paths)
-        return path
-    except Path.DoesNotExist:
-        print("Creating %s" % path)
-        parts = path.rsplit("/", 1)
-        parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
-        result = Path(id = Path.next_id(), path = path, name = parts[-1], parent = parent, is_dir = is_dir)
-        result.save()
-        result.repositories.add(repository)
+    names = path.split("/")
+    paths = [repository.root]
+    while len(names) > 0:
+        try:
+            paths.append(Path.objects.get(parent = paths[-1], name = names[0]))
+            names = names[1:]
+        except Path.DoesNotExist:
+            break
 
-        ancestor = Ancestor(path = result, ancestor = result, depth = 0)
-        ancestor.save()
+    if len(names):
+        newpaths = []
+        ancestors = []
+        while len(names) > 0:
+            is_dir = is_dir if len(names) == 1 else True
+            path = Path(id = Path.next_id(), name = names[0], parent = paths[-1], is_dir = is_dir)
+            names = names[1:]
+            newpaths.append(path)
 
-        depth = 1
-        for parent in result.parentlist():
-            ancestor = Ancestor(path = result, ancestor = parent, depth = depth)
-            ancestor.save()
-            depth = depth + 1
+            depth = len(paths)
+            for ancestor in paths:
+                ancestors.append(Ancestor(path = path, ancestor = ancestor, depth = depth))
+                depth = depth - 1
+            ancestors.append(Ancestor(path = path, ancestor = path, depth = 0))
 
-        transaction.commit()
-        return result
+            paths.append(path)
+
+        Path.objects.bulk_create(newpaths)
+        Ancestor.objects.bulk_create(ancestors)
+
+    repository.paths.add(*paths)
+
+    return paths[-1]
 
 @transaction.commit_manually()
 def add_pushes(ui, repository, pushes):
