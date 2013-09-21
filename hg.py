@@ -126,7 +126,10 @@ def add_paths(ui, repository):
 def get_path(repository, path, is_dir = False):
     try:
         path = Path.objects.get(path = path)
-        path.repositories.add(repository)
+        parent = path.parent
+        while parent:
+            parent.repositories.add(repository)
+            parent = parent.parent
         return path
     except Path.DoesNotExist:
         parts = path.rsplit("/", 1)
