@@ -278,6 +278,23 @@ def init(ui, args):
         repository = Repository(url = url, name = args.name, range = args.range)
         repository.save()
 
+    if args.related:
+        try:
+            related = Repository.objects.get(name = args.related)
+
+            paths = Path.objects.filter(repositories = related)
+            CHUNK = 500
+            count = 0
+            while count < len(paths):
+                ui.progress("indexing paths", count, len(paths))
+                items = paths[count:count + CHUNK]
+                repository.paths.add(*items)
+                count = count + len(items)
+            ui.progress("indexing paths")
+            return
+        except Repository.DoesNotExist:
+            ui.warn("Unknown repository %s, loading file structure from source\n" % args.related)
+
     add_paths(ui, repository)
 
 def update(ui, args):
@@ -360,6 +377,9 @@ def cmdline():
     init_parser.add_argument("--range", dest = "range", type = int,
                              default = DEFAULT_RANGE,
                              help = "The range of changesets to keep.")
+    init_parser.add_argument("--related", dest = "related", type = str,
+                             default = argparse.SUPPRESS,
+                             help = "The name of a related repository to load the file structure from.")
 
     update_parser = subparsers.add_parser('update', help='Update an existing repository.')
     update_parser.set_defaults(func = update)
