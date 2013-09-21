@@ -18,10 +18,9 @@
 </div>
 Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ repository }}</a>
 {% for parent in path.parentlist %}
-{% if forloop.first %} - {% endif %}
-<a href="{% url 'path' repository parent %}{{ query }}">{{ parent.name }}</a>
-{% if not forloop.last %} / {% endif %}
+{% if forloop.first %} - {% else %}<a href="{% url 'path' repository parent %}{{ query }}">{{ parent.name }}</a> / {% endif %}
 {% endfor %}
+{{ path.name }}
 {% endblock %}
 
 {% block sidebar %}

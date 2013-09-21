@@ -57,8 +57,7 @@ def fetch_pushes(url, start = None):
 
 @transaction.commit_manually()
 def add_paths(ui, repository):
-    root = Path.objects.get(path = '')
-    root.repositories.add(repository)
+    root = repository.root
 
     pushes = fetch_pushes(repository.url)
     cset = pushes[-1]['changesets'][-1]
@@ -70,68 +69,67 @@ def add_paths(ui, repository):
     complete = 0
     ui.progress("indexing paths", complete, totalpaths)
 
-    (response, parentlist) = queue.next()
-    while response:
-        directory = parentlist[-1]
-        paths = Path.objects.filter(parent = directory)
-        contents = dict()
-        for path in paths:
-            contents[path.name] = path
-
-        for line in response.split("\n"):
-            line = line.strip()
-            if len(line) == 0:
-                continue
-            matches = re.match('(d)(?:[r-][w-][x-]){3} (.*)|-(?:[r-][w-][x-]){3} (?:\d+) (.*)', line)
-            if not matches:
-                raise Exception("Unable to parse directory entry '%s'" % line)
-
-            is_dir = matches.group(1) == 'd'
-            name = matches.group(2) if is_dir else matches.group(3)
-
-            if name in contents:
-                path = contents[name]
-            else:
-                newpath = directory.path
-                if newpath:
-                    newpath = newpath + '/'
-                newpath = newpath + name
-
-                path = Path(id = Path.next_id(), path = newpath, name = name, parent = directory, is_dir = is_dir)
-                path.save()
-
-                depth = len(parentlist)
-                ancestors = []
-                for ancestor in parentlist:
-                    ancestors.append(Ancestor(path = path, ancestor = ancestor, depth = depth))
-                    depth = depth - 1
-                ancestors.append(Ancestor(path = path, ancestor = path, depth = 0))
-                Ancestor.objects.bulk_create(ancestors)
-
-            path.repositories.add(repository)
-
-            if is_dir:
-                newlist = list(parentlist)
-                newlist.append(path)
-                queue.fetch("%sfile/%s/%s/?style=raw" % (repository.url, cset, path.path), newlist)
-                totalpaths = totalpaths + 1
-
-        complete = complete + 1
-        transaction.commit()
-        ui.progress("indexing paths", complete, totalpaths)
+    try:
         (response, parentlist) = queue.next()
+        while response:
+            directory = parentlist[-1]
+            paths = Path.objects.filter(parent = directory)
+            contents = { p.name: p for p in paths}
 
-    ui.progress("indexing paths")
+            for line in response.split("\n"):
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+                matches = re.match('(d)(?:[r-][w-][x-]){3} (.*)|-(?:[r-][w-][x-]){3} (?:\d+) (.*)', line)
+                if not matches:
+                    raise Exception("Unable to parse directory entry '%s'" % line)
+
+                is_dir = matches.group(1) == 'd'
+                name = matches.group(2) if is_dir else matches.group(3)
+
+                if name in contents:
+                    path = contents[name]
+                else:
+                    path = Path(id = Path.next_id(), name = name, parent = directory, is_dir = is_dir)
+                    path.save()
+
+                    depth = len(parentlist)
+                    ancestors = []
+                    for ancestor in parentlist:
+                        ancestors.append(Ancestor(path = path, ancestor = ancestor, depth = depth))
+                        depth = depth - 1
+                    ancestors.append(Ancestor(path = path, ancestor = path, depth = 0))
+                    Ancestor.objects.bulk_create(ancestors)
+
+                path.repositories.add(repository)
+
+                if is_dir:
+                    newlist = list(parentlist)
+                    newlist.append(path)
+                    fullpath = "/".join([p.name for p in newlist[1:]])
+                    queue.fetch("%sfile/%s/%s/?style=raw" % (repository.url, cset, fullpath), newlist)
+                    totalpaths = totalpaths + 1
+
+            complete = complete + 1
+            transaction.commit()
+            ui.progress("indexing paths", complete, totalpaths)
+            (response, parentlist) = queue.next()
+
+    except:
+        ui.traceback()
+        transaction.rollback()
+    finally:
+        ui.progress("indexing paths")
 
 def get_path(repository, path, is_dir = False):
     try:
-        path = Path.objects.get(path = path)
-        parent = path.parent
-        while parent:
-            parent.repositories.add(repository)
-            parent = parent.parent
+        path = Path.get_by_path(path = path)
+        paths = path.parentlist()
+        paths.append(path)
+        repository.paths.add(*paths)
         return path
     except Path.DoesNotExist:
+        print("Creating %s" % path)
         parts = path.rsplit("/", 1)
         parent = get_path(repository, parts[0] if len(parts) > 1 else '', True)
         result = Path(id = Path.next_id(), path = path, name = parts[-1], parent = parent, is_dir = is_dir)
@@ -142,10 +140,9 @@ def get_path(repository, path, is_dir = False):
         ancestor.save()
 
         depth = 1
-        while parent is not None:
+        for parent in result.parentlist():
             ancestor = Ancestor(path = result, ancestor = parent, depth = depth)
             ancestor.save()
-            parent = parent.parent
             depth = depth + 1
 
         transaction.commit()
@@ -168,8 +165,8 @@ def add_pushes(ui, repository, pushes):
     complete = 0
     ui.progress("indexing changesets", complete, changeset_count)
 
-    for pushdata in pushes:
-        try:
+    try:
+        for pushdata in pushes:
             push = Push(push_id = pushdata['id'], repository = repository, user = pushdata['user'], date = pushdata['date'])
             push.save()
 
@@ -241,12 +238,11 @@ def add_pushes(ui, repository, pushes):
 
             Change.objects.bulk_create(changes)
             transaction.commit()
-        except:
-            ui.traceback()
-            transaction.rollback()
-            return
-
-    ui.progress("indexing changesets")
+    except:
+        ui.traceback()
+        transaction.rollback()
+    finally:
+        ui.progress("indexing changesets")
 
 def expire_changesets(ui, repository):
     oldest = datetime.now(utc) - timedelta(seconds = repository.range)
@@ -281,7 +277,7 @@ def init(ui, args):
         repository = Repository(url = url, name = args.name, range = args.range)
         repository.save()
 
-    if args.related:
+    if "related" in args:
         try:
             related = Repository.objects.get(name = args.related)
 

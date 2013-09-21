@@ -36,7 +36,7 @@ class Repository(models.Model):
 
     @property
     def root(self):
-        return Path.objects.get(repository = self, parent = None)
+        return Path.get_by_path('')
 
     def get_absolute_url(self):
         return self.url
@@ -46,29 +46,46 @@ class Repository(models.Model):
 
 class Path(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
-    name = models.TextField()
-    path = models.TextField(unique = True)
+    name = models.CharField(max_length = 100)
     parent = models.ForeignKey("self", null = True, related_name = "children")
     repositories = models.ManyToManyField(Repository, related_name = "paths")
     is_dir = models.BooleanField()
 
     def parentlist(self):
-        result = []
-        parent = self
-        while parent is not None:
-            result.insert(0, parent)
-            parent = parent.parent
-        result.pop(0)
-        return result
+        if self.parent:
+            return [a.ancestor for a in Ancestor.objects.filter(path = self).exclude(ancestor = self)]
+        return []
+
+    @classmethod
+    def get_by_path(cls, path):
+        if path == '':
+            return Path.objects.get(parent = None)
+
+        names = path.split('/')
+
+        filter = dict()
+        rel = ""
+        for name in reversed(names):
+            filter[rel + "name"] = name
+            rel = "parent__" + rel
+        filter[rel + "parent"] = None
+
+        return Path.objects.get(**filter)
+
+    @property
+    def path(self):
+        if self.parent:
+            paths = self.parentlist()[1:]
+            paths.append(self)
+            return '/'.join([p.name for p in paths])
+        return ''
 
     def __unicode__(self):
         return self.path
 
     class Meta:
-        # MySQL can't handle indexes on TextFields, add them manually later
-        if DATABASE_ENGINE != 'django.db.backends.mysql':
-            unique_together = ("parent", "name")
-        ordering = ["path"]
+        unique_together = ("parent", "name")
+        ordering = ["name"]
 
 class Ancestor(models.Model):
     path = models.ForeignKey(Path, related_name = "ancestors")
@@ -77,6 +94,7 @@ class Ancestor(models.Model):
 
     class Meta:
         unique_together = ("path", "ancestor")
+        ordering = ["-depth"]
 
 class Push(models.Model):
     push_id = models.IntegerField()

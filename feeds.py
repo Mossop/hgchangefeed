@@ -29,8 +29,8 @@ class PathFeed(Feed):
     description_template = 'pathfeed.html'
 
     def get_object(self, request, repository_name, path_name):
-        repository = get_object_or_404(Repository, name = repository_name, hidden = False)
-        path = get_object_or_404(Path, repositories = repository, path = path_name)
+        path = Path.get_by_path(path_name)
+        repository = get_object_or_404(Repository, name = repository_name, paths = path, hidden = False)
         types = None
         if "types" in request.GET:
             types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
