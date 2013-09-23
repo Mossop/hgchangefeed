@@ -107,8 +107,8 @@ class Push(models.Model):
         ordering = ["-push_id"]
 
 class Changeset(models.Model):
+    hex = models.CharField(max_length = 40, primary_key = True)
     pushes = models.ManyToManyField(Push, related_name = "changesets")
-    hex = models.CharField(max_length = 40, unique = True)
     author = models.TextField()
     date = models.DateTimeField()
     tzoffset = models.IntegerField()
@@ -132,9 +132,6 @@ class Changeset(models.Model):
 
     def __unicode__(self):
         return self.shorthex
-
-    class Meta:
-        ordering = ["-id"]
 
 class Change(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
