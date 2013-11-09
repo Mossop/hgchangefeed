@@ -11,7 +11,7 @@ import sys
 project = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if project not in sys.path:
     sys.path.insert(0, project)
-os.environ['DJANGO_SETTINGS_MODULE'] = 'hgchangefeed.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'base.settings'
 
 from datetime import datetime, timedelta
 import re
