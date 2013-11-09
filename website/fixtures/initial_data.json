@@ -4,7 +4,6 @@
     "model": "website.path",
     "fields": {
       "is_dir": true,
-      "repositories": [],
       "name": "",
       "parent": null
     }
