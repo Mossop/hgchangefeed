@@ -1,4 +1,5 @@
 .*
+*~
 *.pyc
 *.sqlite
 bin
@@ -6,3 +7,4 @@ include
 lib
 public
 tmp
+config.py
