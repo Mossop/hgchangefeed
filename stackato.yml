@@ -1,0 +1,4 @@
+name: hgchangefeed
+inherit: base/stackato.yml
+cron:
+  - "*/10 * * * * python website/hg.py updateall --visible"

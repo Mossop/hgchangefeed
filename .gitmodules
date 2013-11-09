@@ -1,0 +1,3 @@
+[submodule "base"]
+	path = base
+	url = git@github.com:Mossop/django-base.git
