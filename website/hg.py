@@ -178,7 +178,7 @@ def add_pushes(ui, repository, pushes):
             push.save()
 
             changes = []
-            changesets = []
+            index = 0
             for cset in pushdata['changesets']:
                 try:
                     (text, hex) = queue.next()
@@ -200,6 +200,9 @@ def add_pushes(ui, repository, pushes):
                     try:
                         changeset = Changeset.objects.get(hex = patches[0].hex)
                         changesets.append(changeset)
+                        pc = PushChangeset(push = push, changeset = changeset, index = index)
+                        pc.save()
+                        index = index + 1
                     except Changeset.DoesNotExist:
                         changeset = Changeset(hex = patches[0].hex,
                                               author = patches[0].user,
@@ -228,8 +231,10 @@ def add_pushes(ui, repository, pushes):
 
                             if not added:
                                 added = True
-                                changesets.append(changeset)
                                 changeset.save()
+                                pc = PushChangeset(push = push, changeset = changeset, index = index)
+                                pc.save()
+                                index = index + 1
 
                             path = get_path(repository, file)
                             change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
@@ -245,7 +250,6 @@ def add_pushes(ui, repository, pushes):
                     raise
 
             Change.objects.bulk_create(changes)
-            push.changesets.add(*changesets)
             transaction.commit()
     except:
         ui.traceback()

@@ -27,7 +27,7 @@ def path(request, repository_name, path_name):
     repository = get_object_or_404(Repository, name = repository_name, paths = path, hidden = False)
 
     queryparams = {
-        "pushes__repository": repository,
+        "pushes__push__repository": repository,
         "changes__path__ancestors__ancestor": path,
     }
 
@@ -35,7 +35,7 @@ def path(request, repository_name, path_name):
         types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
         queryparams["changes__type__in"] = types
 
-    changesets = Changeset.objects.filter(**queryparams).distinct()
+    changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")
 
     query = request.GET.urlencode()
     if query:
@@ -52,7 +52,7 @@ def path(request, repository_name, path_name):
 
 def changeset(request, repository_name, changeset_id):
     repository = get_object_or_404(Repository, name = repository_name, hidden = False)
-    changeset = get_object_or_404(Changeset, pushes__repository = repository, hex__startswith = changeset_id)
+    changeset = get_object_or_404(Changeset, pushes__push__repository = repository, hex__startswith = changeset_id)
     context = {
       "repository": repository,
       "changeset": changeset,

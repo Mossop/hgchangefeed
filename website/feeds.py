@@ -47,14 +47,14 @@ class PathFeed(Feed):
 
     def items(self, req):
         queryparams = {
-            "pushes__repository": req.repository,
+            "pushes__push__repository": req.repository,
             "changes__path__ancestors__ancestor": req.path,
         }
 
         if req.types is not None:
             queryparams["changes__type__in"] = req.types
 
-        changesets = Changeset.objects.filter(**queryparams).distinct()[:20]
+        changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")[:20]
         return [ChangesetItem(req.repository, c) for c in changesets]
 
     def item_title(self, item):

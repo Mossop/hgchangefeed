@@ -94,7 +94,6 @@ class Ancestor(models.Model):
 
     class Meta:
         unique_together = ("path", "ancestor")
-        ordering = ["-depth"]
 
 class Push(models.Model):
     push_id = models.IntegerField()
@@ -103,12 +102,10 @@ class Push(models.Model):
     date = models.DateTimeField()
 
     class Meta:
-        unique_together = ("repository", "id")
-        ordering = ["-push_id"]
+        unique_together = ("repository", "push_id")
 
 class Changeset(models.Model):
     hex = models.CharField(max_length = 40, primary_key = True)
-    pushes = models.ManyToManyField(Push, related_name = "changesets")
     author = models.TextField()
     date = models.DateTimeField()
     tzoffset = models.IntegerField()
@@ -132,6 +129,14 @@ class Changeset(models.Model):
 
     def __unicode__(self):
         return self.shorthex
+
+class PushChangeset(models.Model):
+    push = models.ForeignKey(Push, related_name = "changesets")
+    changeset = models.ForeignKey(Changeset, related_name = "pushes")
+    index = models.IntegerField()
+
+    class Meta:
+        unique_together = (("push", "changeset"), ("push", "index"))
 
 class Change(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
