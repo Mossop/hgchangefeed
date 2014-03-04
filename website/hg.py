@@ -330,9 +330,24 @@ def delete(ui, args):
         ui.status("deleting %d pushes\n" % len(pushes))
         pushes.delete()
 
-        changesets = Changeset.objects.filter(pushes__isnull = True)
-        ui.status("deleting %d changesets\n" % len(changesets))
-        changesets.delete()
+        if DATABASE_ENGINE == 'django.db.backends.sqlite3':
+            # A bug in django makes it impossible to delete a large set of objects
+            # that are referenced by foreign keys, delete them one at a time for
+            # safety. See https://code.djangoproject.com/ticket/16426
+            changeset_count = Changeset.objects.filter(pushes__isnull = True).count()
+            remains = changeset_count
+            count = 0
+            while (remains - count) > 0:
+                changesets = Changeset.objects.filter(pushes__isnull = True)[:500]
+                ui.progress("deleting changesets", count, total = changeset_count)
+                for changeset in changesets:
+                    changeset.delete()
+                count = count + len(changesets)
+            ui.progress("deleting changesets")
+        else:
+            changesets = Changeset.objects.filter(pushes__isnull = True)
+            ui.status("deleting %d changesets\n" % len(changesets))
+            changesets.delete()
 
         if args.onlychangesets:
             return
