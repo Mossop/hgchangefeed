@@ -1,0 +1,5 @@
+#!/bin/bash
+
+git pull origin master
+./manage.py collectstatic --noinput
+touch tmp/restart.txt
