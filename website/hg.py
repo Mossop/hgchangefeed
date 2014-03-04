@@ -67,6 +67,7 @@ def add_paths(ui, repository):
 
     totalpaths = 1
     complete = 0
+    added = 0
     ui.progress("indexing paths", complete, totalpaths)
 
     try:
@@ -92,6 +93,7 @@ def add_paths(ui, repository):
                 else:
                     path = Path(id = Path.next_id(), name = name, parent = directory, is_dir = is_dir)
                     path.save()
+                    added = added + 1
 
                     depth = len(parentlist)
                     ancestors = []
@@ -120,6 +122,7 @@ def add_paths(ui, repository):
         transaction.rollback()
     finally:
         ui.progress("indexing paths")
+        ui.status("added %d paths\n" % added)
 
 def get_path(repository, path, is_dir = False):
     names = path.split("/")
@@ -163,6 +166,7 @@ def add_pushes(ui, repository, pushes):
 
     changeset_count = reduce(lambda s, p: s + len(p['changesets']), pushes, 0)
     complete = 0
+    added = 0
     ui.progress("indexing changesets", complete, changeset_count)
 
     try:
@@ -174,15 +178,12 @@ def add_pushes(ui, repository, pushes):
             index = 0
             for cset in pushdata['changesets']:
                 try:
-                    url = "%sraw-rev/%s" % (repository.url, cset)
-                    patches = [Patch(http_fetch(url).split("\n"))]
-
                     try:
-                        changeset = Changeset.objects.get(hex = patches[0].hex)
-                        pc = PushChangeset(push = push, changeset = changeset, index = index)
-                        pc.save()
-                        index = index + 1
+                        changeset = Changeset.objects.get(hex = cset)
                     except Changeset.DoesNotExist:
+                        url = "%sraw-rev/%s" % (repository.url, cset)
+                        patches = [Patch(http_fetch(url).split("\n"))]
+
                         for parent in patches[0].parents[1:]:
                             url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
                             patches.append(Patch(http_fetch(url).split("\n")))
@@ -199,8 +200,9 @@ def add_pushes(ui, repository, pushes):
                                               date = patches[0].date,
                                               tzoffset = patches[0].tzoffset,
                                               description = patches[0].description)
+                        changeset.save()
+                        added = added + 1
 
-                        added = False
                         for file in allfiles:
                             changetype = ''
                             for patch in patches:
@@ -219,24 +221,19 @@ def add_pushes(ui, repository, pushes):
                             if changetype == "X":
                                 continue
 
-                            if not added:
-                                added = True
-                                changeset.save()
-                                pc = PushChangeset(push = push, changeset = changeset, index = index)
-                                pc.save()
-                                index = index + 1
-
                             path = get_path(repository, file)
                             change = Change(id = Change.next_id(), changeset = changeset, path = path, type = changetype)
                             changes.append(change)
+
+                    pc = PushChangeset(push = push, changeset = changeset, index = index)
+                    pc.save()
+                    index = index + 1
 
                     complete = complete + 1
                     ui.progress("indexing changesets", complete, changeset_count)
 
                 except:
                     ui.warn("failed indexing changeset %s\n" % cset)
-                    ui.traceback()
-                    transaction.rollback()
                     raise
 
             Change.objects.bulk_create(changes)
@@ -246,6 +243,7 @@ def add_pushes(ui, repository, pushes):
         transaction.rollback()
     finally:
         ui.progress("indexing changesets")
+        ui.status("added %d changesets\n" % added)
 
 def expire_changesets(ui, repository):
     oldest = datetime.now(utc) - timedelta(seconds = repository.range)
@@ -288,11 +286,11 @@ def init(ui, args):
             CHUNK = 500
             count = 0
             while count < len(paths):
-                ui.progress("indexing paths", count, len(paths))
+                ui.progress("copying paths", count, len(paths))
                 items = paths[count:count + CHUNK]
                 repository.paths.add(*items)
                 count = count + len(items)
-            ui.progress("indexing paths")
+            ui.progress("copying paths")
             return
         except Repository.DoesNotExist:
             ui.warn("Unknown repository %s, loading file structure from source\n" % args.related)
