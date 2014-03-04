@@ -3,35 +3,28 @@
 This is a simple mercurial hook and django app for display changesets that
 affected directories in mecurial repositories.
 
-# Requirements #
-
-* Mercurial, maybe 2.5
-* Django 1.5
-* Python 2.7
-* PyTz
-
 # Setup #
 
-You're going to want to set up a python virtualenv and pip install mercurial,
-pytz and django at the least into it. Might be others I've forgotten.
+Clone this reporitory and update the submodules. Create a python virtualenv and
+pip install -r requirements.txt.
 
-## Django project ##
+If you want a custom database create a config.ini file that looks like this:
 
-Follow the django tutorial to create a basic project, then checkout this
-repository as an app named "website" in it. Set your settings accordingly, I
-use sqlite for local testing and mysql (with InnoDB tables) on the website. I
-also disabled the auth app and middleware from settings.py. If you aren't using
-runserver for testing then make sure to use `manage.py collectstatic` to set up
-the static files. You should be able to load the main page and have it tell you
-it doesn't know about any repositories.
+  [general]
+  database=mysql://<username>:<password>@<host>/<database>
+
+Otherwise a sqlite3 database is created.
+
+  ./manage.py syncdb
+  ./manage.py collectstatic
+  ./manage.py runserver
 
 ## Managing Repositories ##
 
-The `hg.py` script can be called from the command line to set up repositories to
-track.  Make sure that you run it in the virtualenv that has both mercurial and
-django installed.
+The `website/hg.py` script can be called from the command line to set up
+repositories to track. Make sure that you run it in the virtualenv.
 
-It has four commands.
+It has four commands:
 
 `init` is used to register a new repository to track. It will download the file
 structure of the repository which can take a while.
