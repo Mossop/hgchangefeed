@@ -161,14 +161,7 @@ def add_pushes(ui, repository, pushes):
         ui.status("no new changesets to index\n")
         return
 
-    queue = OrderedHttpQueue()
-    changeset_count = 0
-
-    for push in pushes:
-        changeset_count = changeset_count + len(push['changesets'])
-        for changeset in push['changesets']:
-            queue.fetch("%sraw-rev/%s" % (repository.url, changeset), changeset)
-
+    changeset_count = reduce(lambda s, p: s + len(p['changesets']), pushes, 0)
     complete = 0
     ui.progress("indexing changesets", complete, changeset_count)
 
@@ -181,11 +174,8 @@ def add_pushes(ui, repository, pushes):
             index = 0
             for cset in pushdata['changesets']:
                 try:
-                    (text, hex) = queue.next()
-                    if hex != cset:
-                        raise Exception("Saw unexpected changeset %s, expecting %s" % (hex, cset))
-
-                    patches = [Patch(text.split("\n"))]
+                    url = "%sraw-rev/%s" % (repository.url, cset)
+                    patches = [Patch(http_fetch(url).split("\n"))]
                     for parent in patches[0].parents[1:]:
                         url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
                         patches.append(Patch(http_fetch(url).split("\n")))
