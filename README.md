@@ -10,14 +10,14 @@ pip install -r requirements.txt.
 
 If you want a custom database create a config.ini file that looks like this:
 
-  [general]
-  database=mysql://<username>:<password>@<host>/<database>
+    [general]
+    database=mysql://<username>:<password>@<host>/<database>
 
 Otherwise a sqlite3 database is created.
 
-  ./manage.py syncdb
-  ./manage.py collectstatic
-  ./manage.py runserver
+    ./manage.py syncdb
+    ./manage.py collectstatic
+    ./manage.py runserver
 
 ## Managing Repositories ##
 
