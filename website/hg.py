@@ -158,6 +158,16 @@ def get_path(repository, path, is_dir = False):
 
     return paths[-1]
 
+def merge_changes(a, b):
+    # If both sides have the same change then the merge introduced it
+    if a == b:
+        return a
+    # If either side of the merge has no change then the merge introduced no changes
+    if a is None or b is None:
+        return None
+    # If the changes differ then a modification has been made in the merge
+    return "M"
+
 @transaction.commit_manually()
 def add_pushes(ui, repository, pushes):
     if len(pushes) == 0:
@@ -204,21 +214,10 @@ def add_pushes(ui, repository, pushes):
                         added = added + 1
 
                         for file in allfiles:
-                            changetype = ''
-                            for patch in patches:
-                                # No change against one parent means the change happened
-                                # in an earlier changeset
-                                if not file in patch.files:
-                                    changetype = "X"
-                                    break
+                            changetypes = [p.files.get(file, None) for p in patches]
+                            changetype = reduce(merge_changes, changetypes)
 
-                                patchchange = patch.files[file]
-                                if not changetype:
-                                    changetype = patchchange
-                                elif patchchange == "M":
-                                    changetype = patchchange
-
-                            if changetype == "X":
+                            if changetype is None:
                                 continue
 
                             path = get_path(repository, file)

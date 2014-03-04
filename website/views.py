@@ -28,8 +28,10 @@ def path(request, repository_name, path_name):
 
     queryparams = {
         "pushes__push__repository": repository,
-        "changes__path__ancestors__ancestor": path,
     }
+
+    if path.parent is not None:
+        queryparams["changes__path__ancestors__ancestor"] = path
 
     if "types" in request.GET:
         types = [TYPEMAP[t] for t in request.GET["types"].split(",")]
