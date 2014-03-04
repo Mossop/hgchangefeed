@@ -176,24 +176,24 @@ def add_pushes(ui, repository, pushes):
                 try:
                     url = "%sraw-rev/%s" % (repository.url, cset)
                     patches = [Patch(http_fetch(url).split("\n"))]
-                    for parent in patches[0].parents[1:]:
-                        url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
-                        patches.append(Patch(http_fetch(url).split("\n")))
-
-                    allfiles = set()
-
-                    for patch in patches:
-                        if patch.hex != cset:
-                            raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
-                        allfiles.update(patch.files.keys())
 
                     try:
                         changeset = Changeset.objects.get(hex = patches[0].hex)
-                        changesets.append(changeset)
                         pc = PushChangeset(push = push, changeset = changeset, index = index)
                         pc.save()
                         index = index + 1
                     except Changeset.DoesNotExist:
+                        for parent in patches[0].parents[1:]:
+                            url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
+                            patches.append(Patch(http_fetch(url).split("\n")))
+
+                        allfiles = set()
+
+                        for patch in patches:
+                            if patch.hex != cset:
+                                raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
+                            allfiles.update(patch.files.keys())
+
                         changeset = Changeset(hex = patches[0].hex,
                                               author = patches[0].user,
                                               date = patches[0].date,
