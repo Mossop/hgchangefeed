@@ -121,6 +121,14 @@ class Changeset(models.Model):
         return self.hex[0:12]
 
     @property
+    def parents(self):
+        return (p.parent for p in self.parentchangesets.all())
+
+    @property
+    def children(self):
+        return (c.changeset for c in ChangesetParent.objects.filter(parenthex = self.hex))
+
+    @property
     def changetypes(self):
         changes = set()
         for change in self.changes.all():
@@ -129,6 +137,20 @@ class Changeset(models.Model):
 
     def __unicode__(self):
         return self.shorthex
+
+class ChangesetParent(models.Model):
+    changeset = models.ForeignKey(Changeset, related_name = "parentchangesets")
+    parenthex = models.CharField(max_length = 40, db_index = True)
+
+    @property
+    def parent(self):
+        try:
+            return Changeset.objects.get(hex = self.parenthex)
+        except Changeset.DoesNotExist:
+            return None
+
+    class Meta:
+        unique_together = ("changeset", "parenthex")
 
 class PushChangeset(models.Model):
     push = models.ForeignKey(Push, related_name = "changesets")

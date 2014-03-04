@@ -213,6 +213,10 @@ def add_pushes(ui, repository, pushes):
                         changeset.save()
                         added = added + 1
 
+                        for parent in patches[0].parents:
+                            cp = ChangesetParent(changeset = changeset, parenthex = parent)
+                            cp.save()
+
                         for file in allfiles:
                             changetypes = [p.files.get(file, None) for p in patches]
                             changetype = reduce(merge_changes, changetypes)
