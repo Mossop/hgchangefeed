@@ -1,5 +1,6 @@
 #!/bin/bash
 
 git pull origin master
+git submodule update
 ./manage.py collectstatic --noinput
 touch tmp/restart.txt
