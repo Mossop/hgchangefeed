@@ -105,7 +105,7 @@ class Push(models.Model):
         unique_together = ("repository", "push_id")
 
 class Changeset(models.Model):
-    hex = models.CharField(max_length = 40, primary_key = True)
+    hex = models.CharField(max_length = 40, db_index = True)
     author = models.TextField()
     date = models.DateTimeField()
     tzoffset = models.IntegerField()
