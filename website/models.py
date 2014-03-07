@@ -46,7 +46,7 @@ class Repository(models.Model):
 
 class Path(ManagedPrimaryKey):
     id = models.IntegerField(primary_key = True)
-    name = models.CharField(max_length = 100)
+    name = models.CharField(max_length = 100, db_index = True)
     parent = models.ForeignKey("self", null = True, related_name = "children")
     repositories = models.ManyToManyField(Repository, related_name = "paths")
     is_dir = models.BooleanField()
