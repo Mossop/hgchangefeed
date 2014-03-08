@@ -1,4 +1,5 @@
 {% load mercurial %}
+{% load cache %}
 
 {% comment %}
 <!-- This Source Code Form is subject to the terms of the Mozilla Public
@@ -6,8 +7,9 @@
    - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
 {% endcomment %}
 
+{% cache 86400 changesetfeed obj.changeset %}
 <p>{{ obj.changeset.description|bugzilla|linebreaks }}<p>
 
 <pre>{% for change in obj.changeset.changes.all %}{{change}}
 {% endfor %}</pre>
-
+{% endcache %}

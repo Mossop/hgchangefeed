@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.cache import cache_page
 
 from website.models import *
 
@@ -52,6 +53,7 @@ def path(request, repository_name, path_name):
     }
     return render(request, "path.html", context)
 
+@cache_page(86400)
 def changeset(request, repository_name, changeset_id):
     repository = get_object_or_404(Repository, name = repository_name, hidden = False)
     changeset = get_object_or_404(Changeset, pushes__push__repository = repository, hex__startswith = changeset_id)

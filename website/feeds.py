@@ -47,9 +47,11 @@ class PathFeed(Feed):
 
     def items(self, req):
         queryparams = {
-            "pushes__push__repository": req.repository,
-            "changes__path__ancestors__ancestor": req.path,
+            "pushes__push__repository": req.repository
         }
+
+        if req.path.parent is not None:
+            queryparams["changes__path__ancestors__ancestor"] = req.path
 
         if req.types is not None:
             queryparams["changes__type__in"] = req.types

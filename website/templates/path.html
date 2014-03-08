@@ -8,6 +8,7 @@
 
 {% load tz %}
 {% load mercurial %}
+{% load cache %}
 
 {% block head %}<link href="{% url 'feed' repository path %}{{ query }}" rel="alternate" type="application/rss+xml" title="RSS Feed" />{% endblock %}
 {% block title %}{{ repository }} {{ path }}{% endblock %}
@@ -34,6 +35,7 @@ Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ re
 {% block content %}
 <table class="changesets">
 {% for changeset in changesets %}
+{% cache 86400 changesetpath changeset %}
   <tr>
     <td class="link"><a href="{% url 'changeset' repository changeset %}">Details</a></td>
     <td class="meta">
@@ -53,6 +55,7 @@ Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ re
       {% endfor %}
     </td>
   </tr>
+{% endcache %}
 {% endfor %}
 </table>
 {% endblock %}
