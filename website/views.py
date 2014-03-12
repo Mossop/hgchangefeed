@@ -25,8 +25,11 @@ def tag_cached(func, tag, *args):
     def tag_func(*args):
         return tag
 
+    def check_cache(*args):
+        return func(*args)
+
     decorator = etag(tag_func)
-    view_func = decorator(func)
+    view_func = decorator(check_cache)
     return view_func(*args)
 
 @cache_page(86400)
@@ -52,7 +55,7 @@ def path(request, repository_name, path_name):
 
     changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")
     changesets = list(changesets[:200])
-    tag = "%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
+    tag = "path:%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
 
     return tag_cached(render_path, tag, request, repository, path, changesets)
 
@@ -74,7 +77,7 @@ def render_path(request, repository, path, changesets):
 def changeset(request, repository_name, changeset_id):
     repository = get_object_or_404(Repository, name = repository_name, hidden = False)
     changeset = get_object_or_404(Changeset, pushes__push__repository = repository, hex__startswith = changeset_id)
-    return tag_cached(render_changeset, changeset.hex, request, repository, changeset)
+    return tag_cached(render_changeset, "changeset:%s" % changeset.hex, request, repository, changeset)
 
 def render_changeset(request, repository, changeset):
     context = {
