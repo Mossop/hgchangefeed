@@ -4,6 +4,9 @@
 
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.cache import cache_page
+from django.views.decorators.http import etag
+
+from functools import partial
 
 from website.models import *
 
@@ -17,6 +20,14 @@ def path_cmp(a, b):
     if a.is_dir == b.is_dir:
         return cmp(a.name, b.name)
     return -1 if a.is_dir else 1
+
+def tag_cached(func, tag, *args):
+    def tag_func(*args):
+        return tag
+
+    decorator = etag(tag_func)
+    view_func = decorator(func)
+    return view_func(*args)
 
 @cache_page(86400)
 def index(request):
@@ -40,7 +51,12 @@ def path(request, repository_name, path_name):
         queryparams["changes__type__in"] = types
 
     changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")
+    changesets = list(changesets[:200])
+    tag = "%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
 
+    return tag_cached(render_path, tag, request, repository, path, changesets)
+
+def render_path(request, repository, path, changesets):
     query = request.GET.urlencode()
     if query:
         query = "?" + query
@@ -48,7 +64,7 @@ def path(request, repository_name, path_name):
     context = {
       "repository": repository,
       "path": path,
-      "changesets": changesets[:200],
+      "changesets": changesets,
       "paths": sorted(path.children.filter(repositories = repository), path_cmp),
       "query": query,
     }
@@ -58,6 +74,9 @@ def path(request, repository_name, path_name):
 def changeset(request, repository_name, changeset_id):
     repository = get_object_or_404(Repository, name = repository_name, hidden = False)
     changeset = get_object_or_404(Changeset, pushes__push__repository = repository, hex__startswith = changeset_id)
+    return tag_cached(render_changeset, changeset.hex, request, repository, changeset)
+
+def render_changeset(request, repository, changeset):
     context = {
       "repository": repository,
       "changeset": changeset,
