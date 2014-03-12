@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from django.shortcuts import get_object_or_404, render
+from django.core.cache import cache
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import etag
 
@@ -26,7 +27,14 @@ def tag_cached(func, tag, *args):
         return tag
 
     def check_cache(*args):
-        return func(*args)
+        response = cache.get(tag)
+        if response:
+            return response
+
+        response = func(*args)
+        if response.status_code == 200:
+            cache.set(tag, response, 86400)
+        return response
 
     decorator = etag(tag_func)
     view_func = decorator(check_cache)
