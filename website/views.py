@@ -15,7 +15,7 @@ TYPEMAP = {
 
 def path_cmp(a, b):
     if a.is_dir == b.is_dir:
-        return cmp(a.path, b.path)
+        return cmp(a.name, b.name)
     return -1 if a.is_dir else 1
 
 def index(request):
