@@ -18,6 +18,7 @@ def path_cmp(a, b):
         return cmp(a.name, b.name)
     return -1 if a.is_dir else 1
 
+@cache_page(86400)
 def index(request):
     repositories = Repository.objects.filter(hidden = False).order_by('name')
     context = { "repositories": repositories }
