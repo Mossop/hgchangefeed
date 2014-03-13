@@ -6,59 +6,78 @@ from django.core.management.base import BaseCommand
 
 WIDTH = 78
 
+def verbosity(value):
+    def _verbosity(f):
+        def wrapper(self, *args, **kwargs):
+            if self.verbosity < value:
+                return
+            return f(self, *args, **kwargs)
+        return wrapper
+    return _verbosity
+
+def line_output(f):
+    def wrapper(self, *args, **kwargs):
+        if self.inprogress:
+            self.stdout.write("\n")
+        result = f(self, *args, **kwargs)
+        if self.inprogress:
+            self.progress(*self.inprogress)
+        return result
+    return wrapper
+
 class UICommand(BaseCommand):
-    def output(self, stream, str):
-        try:
-            pos = str.index("\n")
-            line1 = str[0:pos]
-            rest = str[pos:]
-            self.output(stream, line1)
-            stream.write(rest, ending = '')
-        except ValueError:
-            stream.write("\r%s%s" % (str, ' ' * (WIDTH - len(str))), ending = '')
+    inprogress = None
 
+    @verbosity(1)
+    @line_output
     def status(self, str):
-        if self.verbosity < 1:
-            return
+        self.stdout.write(str)
 
-        self.output(self.stdout, str)
-
+    @verbosity(2)
+    @line_output
     def info(self, str):
-        if self.verbosity < 2:
-            return
+        self.stdout.write(str)
 
-        self.output(self.stdout, str)
-
+    @verbosity(3)
+    @line_output
     def log(self, str):
-        if self.verbosity < 3:
-            return
+        self.stdout.write(str)
 
-        self.output(self.stdout, str)
-
+    @line_output
     def warn(self, str):
-        self.output(self.stderr, str)
+        self.stderr.write(str, self.style.ERROR)
 
+    @line_output
     def error(self, str):
-        self.output(self.stderr, str)
+        self.stderr.write(str, self.style.ERROR)
 
+    @line_output
     def traceback(self):
         import traceback
         (type, value, tb) = sys.exc_info()
         self.warn("%s: %s\n" % (type.__name__, value))
         self.warn("".join(traceback.format_tb(tb)))
 
+    @verbosity(1)
     def progress(self, str, pos = None, total = None):
-        if self.verbosity < 1:
-            return
-
         if pos is not None:
             if total:
-                self.output(self.stdout, "%s: %d/%d" % (str, pos, total))
+                line = "%s: %d/%d" % (str, pos, total)
             else:
-                self.output(self.stdout, "%s: %d" % (str, pos))
+                line = "%s: %d" % (str, pos)
+            self.inprogress = (str, pos, total)
         else:
-            self.output(self.stdout, "%s: complete\n" % str)
+            line = "%s: complete" % str
+            self.inprogress = None
+
+        self.stdout.write("\r%s%s" % (line, ' ' * (WIDTH - len(line))), ending = '')
+        if pos is None:
+            self.stdout.write("\n")
 
     def execute(self, *args, **options):
-        self.verbosity = options["verbosity"]
-        super(UICommand, self).execute(*args, **options)
+        self.verbosity = int(options["verbosity"])
+        try:
+            super(UICommand, self).execute(*args, **options)
+        finally:
+            if self.inprogress:
+                self.stdout.write("\n")
