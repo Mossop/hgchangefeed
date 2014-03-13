@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from website.models import *
-from website.management.cli import UI
+from website.management.command import UICommand
 from website.management.http import HttpQueue
 from website.management.repo import fetch_pushes
 
@@ -84,7 +84,7 @@ def add_paths(ui, repository):
         ui.progress("indexing paths")
         ui.status("added %d paths\n" % added)
 
-class Command(BaseCommand):
+class Command(UICommand):
     help = "Add a new repository."
     args = "name url"
 
@@ -102,8 +102,6 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **kwargs):
-        ui = UI(self.stdout, self.stderr, kwargs["verbosity"])
-
         if len(args) != 2:
             raise CommandError("You must provide a name and url for the repository.")
         (name, url) = args
@@ -125,13 +123,13 @@ class Command(BaseCommand):
                 CHUNK = 500
                 count = 0
                 while count < len(paths):
-                    ui.progress("copying paths", count, len(paths))
+                    self.progress("copying paths", count, len(paths))
                     items = paths[count:count + CHUNK]
                     repository.paths.add(*items)
                     count = count + len(items)
-                ui.progress("copying paths")
+                self.progress("copying paths")
                 return
             except Repository.DoesNotExist:
-                ui.warn("Unknown repository %s, loading file structure from source\n" % args["related"])
+                self.warn("Unknown repository %s, loading file structure from source\n" % args["related"])
 
-        add_paths(ui, repository)
+        add_paths(self, repository)

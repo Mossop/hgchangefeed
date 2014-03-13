@@ -7,13 +7,13 @@ from django.conf import settings
 from django.db import transaction
 
 from website.models import *
-from website.management.cli import UI
+from website.management.command import UICommand
 
 from optparse import make_option
 
 DATABASE_ENGINE = settings.DATABASES['default']['ENGINE']
 
-class Command(BaseCommand):
+class Command(UICommand):
     help = "Delete an existing repository."
     args = "name"
 
@@ -28,8 +28,6 @@ class Command(BaseCommand):
 
     @transaction.commit_on_success()
     def handle(self, *args, **kwargs):
-        ui = UI(self.stdout, self.stderr, kwargs["verbosity"])
-
         if len(args) != 1:
             raise CommandError("You must provide the name for the repository.")
         name = args[0]
@@ -38,7 +36,7 @@ class Command(BaseCommand):
             repository = Repository.objects.get(name = name)
 
             pushes = Push.objects.filter(repository = repository)
-            ui.status("deleting %d pushes\n" % len(pushes))
+            self.status("deleting %d pushes\n" % len(pushes))
             pushes.delete()
 
             if DATABASE_ENGINE == 'django.db.backends.sqlite3':
@@ -50,21 +48,21 @@ class Command(BaseCommand):
                 count = 0
                 while (remains - count) > 0:
                     changesets = Changeset.objects.filter(pushes__isnull = True)[:500]
-                    ui.progress("deleting changesets", count, total = changeset_count)
+                    self.progress("deleting changesets", count, total = changeset_count)
                     for changeset in changesets:
                         changeset.delete()
                     count = count + len(changesets)
-                ui.progress("deleting changesets")
+                self.progress("deleting changesets")
             else:
                 changesets = Changeset.objects.filter(pushes__isnull = True)
-                ui.status("deleting %d changesets\n" % len(changesets))
+                self.status("deleting %d changesets\n" % len(changesets))
                 changesets.delete()
 
             if kwargs["onlychangesets"]:
                 return
 
             repository.delete()
-            ui.status("repository deleted\n")
+            self.status("repository deleted\n")
 
             if DATABASE_ENGINE == 'django.db.backends.sqlite3':
                 # A bug in django makes it impossible to delete a large set of objects
@@ -75,14 +73,14 @@ class Command(BaseCommand):
                 count = 0
                 while (remains - count) > 0:
                     paths = Path.objects.filter(repositories__isnull = True).order_by("id")[:500]
-                    ui.progress("deleting paths", count, total = path_count)
+                    self.progress("deleting paths", count, total = path_count)
                     for path in paths:
                         path.delete()
                     count = count + len(paths)
-                ui.progress("deleting paths")
+                self.progress("deleting paths")
             else:
                 paths = Path.objects.filter(repositories__isnull = True)
-                ui.status("deleting %d paths\n" % len(paths))
+                self.status("deleting %d paths\n" % len(paths))
                 paths.delete()
 
         except Repository.DoesNotExist:

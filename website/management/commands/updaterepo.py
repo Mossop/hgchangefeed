@@ -5,18 +5,16 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from website.models import *
-from website.management.cli import UI
+from website.management.command import UICommand
 from website.management.repo import update_repository
 
 from optparse import make_option
 
-class Command(BaseCommand):
+class Command(UICommand):
     help = "Update an existing repository."
     args = "name"
 
     def handle(self, *args, **kwargs):
-        ui = UI(self.stdout, self.stderr, kwargs["verbosity"])
-
         if len(args) != 1:
             raise CommandError("You must provide the name for the repository.")
         name = args[0]
@@ -24,7 +22,7 @@ class Command(BaseCommand):
         try:
             repository = Repository.objects.get(name = name)
 
-            update_repository(ui, repository)
+            update_repository(self, repository)
 
             repository.hidden = False
             repository.save()

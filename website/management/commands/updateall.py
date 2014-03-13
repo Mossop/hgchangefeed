@@ -5,12 +5,12 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from website.models import *
-from website.management.cli import UI
+from website.management.command import UICommand
 from website.management.repo import update_repository
 
 from optparse import make_option
 
-class Command(BaseCommand):
+class Command(UICommand):
     help = "Updates all repositories."
 
     option_list = BaseCommand.option_list + (
@@ -29,8 +29,6 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **kwargs):
-        ui = UI(self.stdout, self.stderr, kwargs["verbosity"])
-
         if kwargs["visible"] and kwargs["hidden"]:
             raise CommandError("You cannot pass --hidden and --visible at the same time")
 
@@ -40,5 +38,5 @@ class Command(BaseCommand):
 
         repositories = Repository.objects.filter(**types)
         for repository in repositories:
-            ui.status("updating %s\n" % repository.name)
-            update_repository(ui, repository)
+            self.status("updating %s\n" % repository.name)
+            update_repository(self, repository)

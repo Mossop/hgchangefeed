@@ -1,12 +1,12 @@
-import sys
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-class UI(object):
-    def __init__(self, stdout, stderr, verbosity):
-        self.stdout = stdout
-        self.stderr = stderr
-        self.verbosity = verbosity
-        self.width = 78
+from django.core.management.base import BaseCommand
 
+WIDTH = 78
+
+class UICommand(BaseCommand):
     def output(self, stream, str):
         try:
             pos = str.index("\n")
@@ -15,7 +15,7 @@ class UI(object):
             self.output(stream, line1)
             stream.write(rest, ending = '')
         except ValueError:
-            stream.write("\r%s%s" % (str, ' ' * (self.width - len(str))), ending = '')
+            stream.write("\r%s%s" % (str, ' ' * (WIDTH - len(str))), ending = '')
 
     def status(self, str):
         if self.verbosity < 1:
@@ -35,14 +35,17 @@ class UI(object):
 
         self.output(self.stdout, str)
 
+    def warn(self, str):
+        self.output(self.stderr, str)
+
+    def error(self, str):
+        self.output(self.stderr, str)
+
     def traceback(self):
         import traceback
         (type, value, tb) = sys.exc_info()
         self.warn("%s: %s\n" % (type.__name__, value))
         self.warn("".join(traceback.format_tb(tb)))
-
-    def warn(self, str):
-        self.output(self.stderr, str)
 
     def progress(self, str, pos = None, total = None):
         if self.verbosity < 1:
@@ -55,3 +58,7 @@ class UI(object):
                 self.output(self.stdout, "%s: %d" % (str, pos))
         else:
             self.output(self.stdout, "%s: complete\n" % str)
+
+    def execute(self, *args, **options):
+        self.verbosity = options["verbosity"]
+        super(UICommand, self).execute(*args, **options)
