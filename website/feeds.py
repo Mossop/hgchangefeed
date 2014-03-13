@@ -9,12 +9,7 @@ from django.http import HttpResponse
 from django.template.loader import render_to_string
 
 from website.models import *
-
-TYPEMAP = {
-    "added": "A",
-    "removed": "R",
-    "modified": "M",
-}
+from website.shared import *
 
 def path(request, repository_name, path_name):
     path = Path.get_by_path(path_name)
@@ -33,7 +28,11 @@ def path(request, repository_name, path_name):
 
     changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")
     changesets = list(changesets[:20])
+    tag = "feed:%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
 
+    return tag_cached(render_path, tag, request, repository, path, changesets)
+
+def render_path(request, repository, path, changesets):
     feed = feedgenerator.Rss201rev2Feed(
         title = "Changes in %s %s" % (repository, path),
         description = "Changes recently made to %s in %s" % (path, repository),

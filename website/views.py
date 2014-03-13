@@ -3,42 +3,15 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from django.shortcuts import get_object_or_404, render
-from django.core.cache import cache
 from django.views.decorators.cache import cache_page
-from django.views.decorators.http import etag
-
-from functools import partial
 
 from website.models import *
-
-TYPEMAP = {
-    "added": "A",
-    "removed": "R",
-    "modified": "M",
-}
+from website.shared import *
 
 def path_cmp(a, b):
     if a.is_dir == b.is_dir:
         return cmp(a.name, b.name)
     return -1 if a.is_dir else 1
-
-def tag_cached(func, tag, *args):
-    def tag_func(*args):
-        return tag
-
-    def check_cache(*args):
-        response = cache.get(tag)
-        if response:
-            return response
-
-        response = func(*args)
-        if response.status_code == 200:
-            cache.set(tag, response, 86400)
-        return response
-
-    decorator = etag(tag_func)
-    view_func = decorator(check_cache)
-    return view_func(*args)
 
 @cache_page(86400)
 def index(request):
