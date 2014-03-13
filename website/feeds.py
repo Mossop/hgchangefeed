@@ -48,4 +48,4 @@ def render_path(request, repository, path, changesets):
             pubdate = changeset.localdate,
         )
 
-    return HttpResponse(feed.writeString('UTF-8'), content_type="application/rss+xml; charset=utf-8")
+    return HttpResponse(feed.writeString('UTF-8'), content_type=feed.mime_type)
