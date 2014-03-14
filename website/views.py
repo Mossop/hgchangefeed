@@ -36,7 +36,10 @@ def path(request, repository_name, path_name):
 
     changesets = Changeset.objects.filter(**queryparams).distinct().order_by("-pushes__push__push_id", "-pushes__index")
     changesets = list(changesets[:200])
-    tag = "path:%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
+    if len(changesets):
+        tag = "path:%s/%s:%s:%s" % (repository_name, path_name, changesets[0].hex, changesets[-1].hex)
+    else:
+        tag = "path:%s/%s::" % (repository_name, path_name)
 
     return tag_cached(render_path, tag, request, repository, path, changesets)
 
