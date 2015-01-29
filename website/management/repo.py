@@ -12,6 +12,8 @@ from pytz import timezone, utc
 from django.db.models import Max
 from django.db import transaction
 
+from base.utils import config
+
 from website.models import *
 from website.management.http import http_fetch
 from website.management.patch import Patch
@@ -94,6 +96,10 @@ def add_pushes(ui, repository, pushes):
     added = 0
     ui.progress("indexing changesets", complete, changeset_count)
 
+    ignore = []
+    if config.has_option("hgchangefeed", "ignore"):
+        ignore = config.get("hgchangefeed", "ignore").split(",")
+
     try:
         for pushdata in pushes:
             push = Push(push_id = pushdata['id'], repository = repository, user = pushdata['user'], date = pushdata['date'])
@@ -102,6 +108,9 @@ def add_pushes(ui, repository, pushes):
             changes = []
             index = 0
             for cset in pushdata['changesets']:
+                if cset[0:12] in ignore:
+                    ui.warn("Ignoring changeset %s" % cset)
+                    continue
                 try:
                     try:
                         changeset = Changeset.objects.get(hex = cset)
