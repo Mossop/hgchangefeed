@@ -39,7 +39,7 @@ Recent changes in <a href="{% url 'path' repository.name '' %}{{ query }}">{{ re
   <tr>
     <td class="link"><a href="{% url 'changeset' repository changeset %}">Details</a></td>
     <td class="meta">
-      {{ changeset }}<br>
+      <a href="{{ repository.url }}rev/{{ changeset }}">{{ changeset }}</a><br>
       {% localtime off %}{{ changeset.localdate|date:"D M d H:i:s Y O" }}{% endlocaltime %}
     </td>
     <td class="summary"><span class="author">{{ changeset.author|name }}</span> - {{ changeset.description|summarise|bugzilla }}</td>
