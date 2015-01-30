@@ -67,6 +67,6 @@ def render_changeset(request, repository, changeset):
     context = {
       "repository": repository,
       "changeset": changeset,
-      "changes": changeset.changes.all(),
+      "changes": sorted(changeset.changes.all(), cmp=lambda x,y: cmp(x.path.path, y.path.path)),
     }
     return render(request, "changeset.html", context)
