@@ -21,7 +21,7 @@ from website.management.patch import Patch
 def utc_datetime(timestamp):
     return datetime.fromtimestamp(timestamp, utc)
 
-def fetch_pushes(url, start = None):
+def fetch_pushes(ui, url, start = None):
     url = "%sjson-pushes" % url
 
     if start:
@@ -35,10 +35,12 @@ def fetch_pushes(url, start = None):
             query['startID'] = start['id']
         url = url + '?' + urlencode(query)
 
+    ui.log("fetching pushes: %s\n" % url)
     results = json.loads(http_fetch(url))
     ids = [int(k) for k in results.keys()]
     ids.sort()
     pushes = [dict(results[str(id)], id = id, date = utc_datetime(results[str(id)]['date'])) for id in ids]
+    ui.log("found %d pushes\n" % len(pushes))
     return pushes
 
 def get_path(repository, path, is_dir = False):
@@ -115,11 +117,14 @@ def add_pushes(ui, repository, pushes):
                     try:
                         changeset = Changeset.objects.get(hex = cset)
                     except Changeset.DoesNotExist:
+                        ui.log("indexing changeset %s\n" % cset)
                         url = "%sraw-rev/%s" % (repository.url, cset)
+                        ui.log("fetching patch %s\n"% url)
                         patches = [Patch(http_fetch(url).split("\n"))]
 
                         for parent in patches[0].parents[1:]:
                             url = "%sraw-rev/%s:%s" % (repository.url, parent, cset)
+                            ui.log("fetching patch %s\n"% url)
                             patches.append(Patch(http_fetch(url).split("\n")))
 
                         allfiles = set()
@@ -129,6 +134,7 @@ def add_pushes(ui, repository, pushes):
                                 raise Exception("Saw unexpected changeset %s, expecting %s" % (patch.hex, cset))
                             allfiles.update(patch.files.keys())
 
+                        ui.log("indexing changeset %s complete\n" % cset)
                         changeset = Changeset(hex = patches[0].hex,
                                               author = patches[0].user,
                                               date = patches[0].date,
@@ -191,6 +197,6 @@ def update_repository(ui, repository):
     else:
         start['date'] = datetime.now(utc) - timedelta(seconds = repository.range)
 
-    pushes = fetch_pushes(repository.url, start)
+    pushes = fetch_pushes(ui, repository.url, start)
     add_pushes(ui, repository, pushes)
     expire_changesets(ui, repository)
